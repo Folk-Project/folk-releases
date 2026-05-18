@@ -68,43 +68,49 @@ jobs:
             echo "version=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Read build manifest
+      - name: Parse manifest and generate folk.build.toml
         id: manifest
         run: |
-          BUILDER_VER=$(grep 'version' build-manifest.toml | head -2 | tail -1 | sed 's/.*"\(.*\)"/\1/' | sed 's/\.\*//')
-          echo "builder_version=${BUILDER_VER}" >> $GITHUB_OUTPUT
-
-      - name: Generate folk.build.toml from manifest
-        run: |
           python3 << 'SCRIPT'
-          import re
+          import re, os
 
           with open('build-manifest.toml') as f:
               content = f.read()
 
-          plugins = re.findall(r'(folk-plugin-\w+)\s*=\s*"([^"]+)"', content)
+          # Extract builder version from [builder] section
+          m = re.search(r'\[builder\]\s*\nversion\s*=\s*"([^"]+)"', content)
+          builder_ver = m.group(1).replace('.*', '') if m else '0.2'
 
+          # Extract plugin versions from [plugins] section
+          plugins = re.findall(r'(folk-plugin-[\w-]+)\s*=\s*"([^"]+)"', content)
+
+          # Generate folk.build.toml
           lines = ['[build]', 'output = "folk"', '']
           for name, ver in plugins:
               ver_clean = ver.replace('.*', '')
-              lines.append('[[plugin]]')
-              lines.append(f'crate_name = "{name}"')
-              lines.append(f'version = "{ver_clean}"')
-              key = name.replace("folk-plugin-", "")
-              lines.append(f'config_key = "{key}"')
-              lines.append('')
+              key = name.replace('folk-plugin-', '')
+              lines += [
+                  '[[plugin]]',
+                  f'crate_name = "{name}"',
+                  f'version = "{ver_clean}"',
+                  f'config_key = "{key}"',
+                  '',
+              ]
 
           with open('folk.build.toml', 'w') as f:
               f.write('\n'.join(lines))
 
           print(open('folk.build.toml').read())
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'builder_version={builder_ver}\n')
           SCRIPT
 
       - name: Build folk.so in Docker
         run: |
           cat > Dockerfile.build << 'DOCKERFILE'
           ARG PHP_VERSION=8.4
-          FROM --platform=$TARGETPLATFORM php:${PHP_VERSION}-zts
+          FROM php:${PHP_VERSION}-zts
 
           ARG RUST_TOOLCHAIN=1.88.0
           RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
@@ -175,11 +181,40 @@ jobs:
             echo "version=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Read build manifest
+      - name: Parse manifest and generate folk.build.toml
         id: manifest
         run: |
-          BUILDER_VER=$(grep 'version' build-manifest.toml | head -2 | tail -1 | sed 's/.*"\(.*\)"/\1/' | sed 's/\.\*//')
-          echo "builder_version=${BUILDER_VER}" >> $GITHUB_OUTPUT
+          python3 << 'SCRIPT'
+          import re, os
+
+          with open('build-manifest.toml') as f:
+              content = f.read()
+
+          m = re.search(r'\[builder\]\s*\nversion\s*=\s*"([^"]+)"', content)
+          builder_ver = m.group(1).replace('.*', '') if m else '0.2'
+
+          plugins = re.findall(r'(folk-plugin-[\w-]+)\s*=\s*"([^"]+)"', content)
+
+          lines = ['[build]', 'output = "folk"', '']
+          for name, ver in plugins:
+              ver_clean = ver.replace('.*', '')
+              key = name.replace('folk-plugin-', '')
+              lines += [
+                  '[[plugin]]',
+                  f'crate_name = "{name}"',
+                  f'version = "{ver_clean}"',
+                  f'config_key = "{key}"',
+                  '',
+              ]
+
+          with open('folk.build.toml', 'w') as f:
+              f.write('\n'.join(lines))
+
+          print(open('folk.build.toml').read())
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'builder_version={builder_ver}\n')
+          SCRIPT
 
       - name: Install PHP (ZTS)
         uses: shivammathur/setup-php@v2
@@ -200,38 +235,11 @@ jobs:
       - name: Install folk-builder
         run: cargo install folk-builder@${{ steps.manifest.outputs.builder_version }}
 
-      - name: Generate folk.build.toml from manifest
-        run: |
-          python3 << 'SCRIPT'
-          import re
-
-          with open('build-manifest.toml') as f:
-              content = f.read()
-
-          plugins = re.findall(r'(folk-plugin-\w+)\s*=\s*"([^"]+)"', content)
-
-          lines = ['[build]', 'output = "folk"', '']
-          for name, ver in plugins:
-              ver_clean = ver.replace('.*', '')
-              lines.append('[[plugin]]')
-              lines.append(f'crate_name = "{name}"')
-              lines.append(f'version = "{ver_clean}"')
-              key = name.replace("folk-plugin-", "")
-              lines.append(f'config_key = "{key}"')
-              lines.append('')
-
-          with open('folk.build.toml', 'w') as f:
-              f.write('\n'.join(lines))
-
-          print(open('folk.build.toml').read())
-          SCRIPT
-
       - name: Build folk.so
         run: folk-builder build --config folk.build.toml --output-dir .
 
       - name: Package folk.dylib
         run: |
-          # macOS produces .dylib, rename to .so for consistency
           SO_FILE=$(find . -maxdepth 1 -name "*.dylib" -o -name "*.so" | head -1)
           if [ -z "$SO_FILE" ]; then
             echo "ERROR: folk.so/folk.dylib not found"

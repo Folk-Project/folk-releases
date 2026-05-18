@@ -66,26 +66,18 @@ See [Benchmarks](benchmarks.md) for methodology and full results.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────┐
-│          PHP Process (PID 1)        │
-│                                     │
-│  ┌─────────┐  ┌──────────────────┐  │
-│  │ Worker 1 │  │  Rust Runtime    │  │
-│  │ (main)   │  │                  │  │
-│  ├─────────┤  │  ┌────────────┐  │  │
-│  │ Worker 2 │◄─┤  │ HTTP Plugin│  │  │
-│  │ (ZTS)    │  │  ├────────────┤  │  │
-│  ├─────────┤  │  │ Jobs Plugin│  │  │
-│  │ Worker 3 │  │  ├────────────┤  │  │
-│  │ (ZTS)    │  │  │ gRPC Plugin│  │  │
-│  ├─────────┤  │  ├────────────┤  │  │
-│  │ Worker 4 │  │  │ Metrics    │  │  │
-│  │ (ZTS)    │  │  └────────────┘  │  │
-│  └─────────┘  └──────────────────┘  │
-└─────────────────────────────────────┘
-     channels          tokio async
-  (std::sync::mpsc)     runtime
-```
+Folk runs as a **single PHP process** with an embedded Rust runtime:
 
-Workers communicate with the Rust runtime via lock-free channels — no sockets, no serialization overhead.
+- **Rust runtime** (tokio) runs in a background thread, handling all I/O: HTTP, gRPC, job queues, metrics
+- **PHP workers** (ZTS threads) handle business logic — your Laravel/Symfony/plain PHP code
+- **Communication** via `std::sync::mpsc` channels — zero-copy, no sockets, no serialization overhead
+
+| Component | Role |
+|-----------|------|
+| Worker 1 (main thread) | PHP worker + process entry point |
+| Workers 2–N (ZTS threads) | Additional PHP workers |
+| HTTP Plugin | Accepts HTTP requests, dispatches to workers |
+| Jobs Plugin | In-memory or Redis job queues |
+| gRPC Plugin | Native gRPC server with reflection |
+| Metrics Plugin | Prometheus `/metrics` + `/health` |
+| Process Plugin | Supervised background processes |
