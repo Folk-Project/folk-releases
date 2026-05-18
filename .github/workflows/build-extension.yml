@@ -15,9 +15,13 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: "1.88.0"
 
 jobs:
-  build:
+  # ---------------------------------------------------------------------------
+  # Linux builds (Docker on self-hosted runner)
+  # ---------------------------------------------------------------------------
+  build-linux:
     name: PHP ${{ matrix.php }} — ${{ matrix.platform }}
     runs-on: self-hosted
 
@@ -34,6 +38,12 @@ jobs:
             platform: linux-x86_64
             docker_platform: linux/amd64
           - php: "8.4"
+            platform: linux-aarch64
+            docker_platform: linux/arm64
+          - php: "8.5"
+            platform: linux-x86_64
+            docker_platform: linux/amd64
+          - php: "8.5"
             platform: linux-aarch64
             docker_platform: linux/arm64
 
@@ -63,7 +73,6 @@ jobs:
           with open('build-manifest.toml') as f:
               content = f.read()
 
-          # Extract plugin versions
           plugins = re.findall(r'(folk-plugin-\w+)\s*=\s*"([^"]+)"', content)
 
           lines = ['[build]', 'output = "folk"', '']
@@ -72,7 +81,6 @@ jobs:
               lines.append('[[plugin]]')
               lines.append(f'crate_name = "{name}"')
               lines.append(f'version = "{ver_clean}"')
-              # derive config_key from crate name: folk-plugin-http -> http
               key = name.replace("folk-plugin-", "")
               lines.append(f'config_key = "{key}"')
               lines.append('')
@@ -89,8 +97,9 @@ jobs:
           ARG PHP_VERSION=8.4
           FROM --platform=$TARGETPLATFORM php:${PHP_VERSION}-zts
 
+          ARG RUST_TOOLCHAIN=1.88.0
           RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-              | sh -s -- -y --default-toolchain 1.88.0
+              | sh -s -- -y --default-toolchain ${RUST_TOOLCHAIN}
           ENV PATH="/root/.cargo/bin:${PATH}"
 
           RUN apt-get update && apt-get install -y \
@@ -108,11 +117,12 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.docker_platform }} \
             --build-arg PHP_VERSION=${{ matrix.php }} \
+            --build-arg RUST_TOOLCHAIN=${{ env.RUST_TOOLCHAIN }} \
             --build-arg BUILDER_VERSION=${{ steps.manifest.outputs.builder_version }} \
             --output type=local,dest=out/ \
             -f Dockerfile.build .
 
-      - name: Find and package folk.so
+      - name: Package folk.so
         run: |
           SO_FILE=$(find out/ -name "folk.so" -o -name "libfolk.so" | head -1)
           if [ -z "$SO_FILE" ]; then
@@ -121,7 +131,6 @@ jobs:
             exit 1
           fi
 
-          VERSION=${{ steps.version.outputs.version }}
           ASSET_NAME="folk-php${{ matrix.php }}-zts-${{ matrix.platform }}"
           mkdir -p dist
           cp "$SO_FILE" "dist/${ASSET_NAME}.so"
@@ -134,9 +143,111 @@ jobs:
           name: ${{ env.ASSET_NAME }}
           path: dist/
 
+  # ---------------------------------------------------------------------------
+  # macOS builds (GitHub-hosted runner, native build)
+  # ---------------------------------------------------------------------------
+  build-macos:
+    name: PHP ${{ matrix.php }} — darwin-aarch64
+    runs-on: macos-latest
+
+    strategy:
+      matrix:
+        php: ["8.3", "8.4"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Read build manifest
+        id: manifest
+        run: |
+          BUILDER_VER=$(grep 'version' build-manifest.toml | head -2 | tail -1 | sed 's/.*"\(.*\)"/\1/' | sed 's/\.\*//')
+          echo "builder_version=${BUILDER_VER}" >> $GITHUB_OUTPUT
+
+      - name: Install PHP (ZTS)
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: none
+        env:
+          phpts: zts
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Install build deps
+        run: brew install protobuf llvm
+
+      - name: Install folk-builder
+        run: cargo install folk-builder@${{ steps.manifest.outputs.builder_version }}
+
+      - name: Generate folk.build.toml from manifest
+        run: |
+          python3 << 'SCRIPT'
+          import re
+
+          with open('build-manifest.toml') as f:
+              content = f.read()
+
+          plugins = re.findall(r'(folk-plugin-\w+)\s*=\s*"([^"]+)"', content)
+
+          lines = ['[build]', 'output = "folk"', '']
+          for name, ver in plugins:
+              ver_clean = ver.replace('.*', '')
+              lines.append('[[plugin]]')
+              lines.append(f'crate_name = "{name}"')
+              lines.append(f'version = "{ver_clean}"')
+              key = name.replace("folk-plugin-", "")
+              lines.append(f'config_key = "{key}"')
+              lines.append('')
+
+          with open('folk.build.toml', 'w') as f:
+              f.write('\n'.join(lines))
+
+          print(open('folk.build.toml').read())
+          SCRIPT
+
+      - name: Build folk.so
+        run: folk-builder build --config folk.build.toml --output-dir .
+
+      - name: Package folk.dylib
+        run: |
+          # macOS produces .dylib, rename to .so for consistency
+          SO_FILE=$(find . -maxdepth 1 -name "*.dylib" -o -name "*.so" | head -1)
+          if [ -z "$SO_FILE" ]; then
+            echo "ERROR: folk.so/folk.dylib not found"
+            ls -la
+            exit 1
+          fi
+
+          ASSET_NAME="folk-php${{ matrix.php }}-zts-darwin-aarch64"
+          mkdir -p dist
+          cp "$SO_FILE" "dist/${ASSET_NAME}.dylib"
+          cd dist && shasum -a 256 "${ASSET_NAME}.dylib" > "${ASSET_NAME}.dylib.sha256"
+          echo "ASSET_NAME=${ASSET_NAME}" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET_NAME }}
+          path: dist/
+
+  # ---------------------------------------------------------------------------
+  # Release
+  # ---------------------------------------------------------------------------
   release:
     name: Create GitHub Release
-    needs: [build]
+    needs: [build-linux, build-macos]
     runs-on: ubuntu-latest
 
     steps:
@@ -168,26 +279,39 @@ jobs:
 
             Pre-built `folk.so` with all plugins (http, jobs, grpc, metrics, process).
 
-            ### Download
+            ### Linux (`.so`)
 
             | PHP | Platform | File |
             |-----|----------|------|
-            | 8.3 | Linux x86_64 | `folk-php8.3-zts-linux-x86_64.so` |
-            | 8.3 | Linux ARM64 | `folk-php8.3-zts-linux-aarch64.so` |
-            | 8.4 | Linux x86_64 | `folk-php8.4-zts-linux-x86_64.so` |
-            | 8.4 | Linux ARM64 | `folk-php8.4-zts-linux-aarch64.so` |
+            | 8.3 | x86_64 | `folk-php8.3-zts-linux-x86_64.so` |
+            | 8.3 | ARM64 | `folk-php8.3-zts-linux-aarch64.so` |
+            | 8.4 | x86_64 | `folk-php8.4-zts-linux-x86_64.so` |
+            | 8.4 | ARM64 | `folk-php8.4-zts-linux-aarch64.so` |
+            | 8.5 | x86_64 | `folk-php8.5-zts-linux-x86_64.so` |
+            | 8.5 | ARM64 | `folk-php8.5-zts-linux-aarch64.so` |
 
-            ### Install
+            ### macOS Apple Silicon (`.dylib`)
+
+            | PHP | File |
+            |-----|------|
+            | 8.3 | `folk-php8.3-zts-darwin-aarch64.dylib` |
+            | 8.4 | `folk-php8.4-zts-darwin-aarch64.dylib` |
+
+            ### Install (Linux)
 
             ```bash
-            # Download for your platform
             curl -L -o folk.so https://github.com/Folk-Project/folk-releases/releases/download/ext-v${{ steps.version.outputs.version }}/folk-php8.4-zts-linux-x86_64.so
-
-            # Copy to PHP extensions directory
             cp folk.so $(php -r "echo ini_get('extension_dir');")/folk.so
             echo "extension=folk.so" > $(php --ini | grep 'Scan' | awk '{print $NF}')/folk.ini
+            php -r "echo folk_version();"
+            ```
 
-            # Verify
+            ### Install (macOS)
+
+            ```bash
+            curl -L -o folk.dylib https://github.com/Folk-Project/folk-releases/releases/download/ext-v${{ steps.version.outputs.version }}/folk-php8.4-zts-darwin-aarch64.dylib
+            cp folk.dylib $(php -r "echo ini_get('extension_dir');")/folk.dylib
+            echo "extension=folk.dylib" > $(php --ini | grep 'Scan' | awk '{print $NF}')/folk.ini
             php -r "echo folk_version();"
             ```
         env:
