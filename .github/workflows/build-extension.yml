@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         include:
           - php: "8.3"
@@ -185,6 +186,7 @@ jobs:
     runs-on: macos-latest
 
     strategy:
+      fail-fast: false
       matrix:
         php: ["8.3", "8.4", "8.5"]
 
@@ -199,41 +201,6 @@ jobs:
           else
             echo "version=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
           fi
-
-      - name: Parse manifest and generate folk.build.toml
-        id: manifest
-        run: |
-          python3 << 'SCRIPT'
-          import re, os
-
-          with open('build-manifest.toml') as f:
-              content = f.read()
-
-          m = re.search(r'\[builder\]\s*\nversion\s*=\s*"([^"]+)"', content)
-          builder_ver = m.group(1).replace('.*', '') if m else '0.2'
-
-          plugins = re.findall(r'(folk-plugin-[\w-]+)\s*=\s*"([^"]+)"', content)
-
-          lines = ['[build]', 'output = "folk"', '']
-          for name, ver in plugins:
-              ver_clean = ver.replace('.*', '')
-              key = name.replace('folk-plugin-', '')
-              lines += [
-                  '[[plugin]]',
-                  f'crate_name = "{name}"',
-                  f'version = "{ver_clean}"',
-                  f'config_key = "{key}"',
-                  '',
-              ]
-
-          with open('folk.build.toml', 'w') as f:
-              f.write('\n'.join(lines))
-
-          print(open('folk.build.toml').read())
-
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f'builder_version={builder_ver}\n')
-          SCRIPT
 
       - name: Install PHP (ZTS)
         uses: shivammathur/setup-php@v2
@@ -250,6 +217,59 @@ jobs:
 
       - name: Install build deps
         run: brew install protobuf llvm
+
+      - name: Parse manifest and generate folk.build.toml
+        id: manifest
+        run: |
+          python3 << 'SCRIPT'
+          import re, os, subprocess
+
+          def resolve_latest(crate, ver_spec):
+              """Resolve '0.2.*' or '0.2' to actual latest version from crates.io."""
+              if '*' not in ver_spec and ver_spec.count('.') == 2:
+                  return ver_spec
+              prefix = ver_spec.replace('.*', '').replace('*', '')
+              out = subprocess.check_output(
+                  ['cargo', 'search', crate, '--limit=1'],
+                  text=True
+              )
+              m = re.search(rf'{re.escape(crate)}\s*=\s*"([^"]+)"', out)
+              if m and m.group(1).startswith(prefix):
+                  return m.group(1)
+              return prefix + '.0'
+
+          with open('build-manifest.toml') as f:
+              content = f.read()
+
+          m = re.search(r'\[builder\]\s*\nversion\s*=\s*"([^"]+)"', content)
+          builder_spec = m.group(1) if m else '0.2.*'
+          builder_ver = resolve_latest('folk-builder', builder_spec)
+          print(f'Builder: folk-builder@{builder_ver}')
+
+          plugins = re.findall(r'(folk-plugin-[\w-]+)\s*=\s*"([^"]+)"', content)
+
+          lines = ['[build]', 'output = "folk"', '']
+          for name, ver_spec in plugins:
+              ver = resolve_latest(name, ver_spec)
+              key = name.replace('folk-plugin-', '')
+              lines += [
+                  '[[plugin]]',
+                  f'crate_name = "{name}"',
+                  f'version = "{ver}"',
+                  f'config_key = "{key}"',
+                  '',
+              ]
+              print(f'Plugin: {name}@{ver}')
+
+          with open('folk.build.toml', 'w') as f:
+              f.write('\n'.join(lines))
+
+          print('\n--- folk.build.toml ---')
+          print(open('folk.build.toml').read())
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'builder_version={builder_ver}\n')
+          SCRIPT
 
       - name: Install folk-builder
         run: cargo install folk-builder@${{ steps.manifest.outputs.builder_version }}
