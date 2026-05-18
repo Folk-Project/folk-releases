@@ -1,0 +1,19 @@
+# Folk Extension Build Manifest
+#
+# Defines which versions of folk-builder and plugins to use
+# when building pre-compiled folk.so binaries.
+#
+# CI reads this file, generates folk.build.toml, and runs folk-builder.
+
+[release]
+version = "0.1.0"
+
+[builder]
+version = "0.2.*"
+
+[plugins]
+folk-plugin-http = "0.2.*"
+folk-plugin-jobs = "0.2.*"
+folk-plugin-grpc = "0.2.*"
+folk-plugin-metrics = "0.2.*"
+folk-plugin-process = "0.2.*"

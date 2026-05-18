@@ -1,0 +1,194 @@
+name: Build Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.1.0)'
+        required: true
+  push:
+    tags:
+      - 'ext-v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: PHP ${{ matrix.php }} — ${{ matrix.platform }}
+    runs-on: self-hosted
+
+    strategy:
+      matrix:
+        include:
+          - php: "8.3"
+            platform: linux-x86_64
+            docker_platform: linux/amd64
+          - php: "8.3"
+            platform: linux-aarch64
+            docker_platform: linux/arm64
+          - php: "8.4"
+            platform: linux-x86_64
+            docker_platform: linux/amd64
+          - php: "8.4"
+            platform: linux-aarch64
+            docker_platform: linux/arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Read build manifest
+        id: manifest
+        run: |
+          BUILDER_VER=$(grep 'version' build-manifest.toml | head -2 | tail -1 | sed 's/.*"\(.*\)"/\1/' | sed 's/\.\*//')
+          echo "builder_version=${BUILDER_VER}" >> $GITHUB_OUTPUT
+
+      - name: Generate folk.build.toml from manifest
+        run: |
+          python3 << 'SCRIPT'
+          import re
+
+          with open('build-manifest.toml') as f:
+              content = f.read()
+
+          # Extract plugin versions
+          plugins = re.findall(r'(folk-plugin-\w+)\s*=\s*"([^"]+)"', content)
+
+          lines = ['[build]', 'output = "folk"', '']
+          for name, ver in plugins:
+              ver_clean = ver.replace('.*', '')
+              lines.append('[[plugin]]')
+              lines.append(f'crate_name = "{name}"')
+              lines.append(f'version = "{ver_clean}"')
+              # derive config_key from crate name: folk-plugin-http -> http
+              key = name.replace("folk-plugin-", "")
+              lines.append(f'config_key = "{key}"')
+              lines.append('')
+
+          with open('folk.build.toml', 'w') as f:
+              f.write('\n'.join(lines))
+
+          print(open('folk.build.toml').read())
+          SCRIPT
+
+      - name: Build folk.so in Docker
+        run: |
+          cat > Dockerfile.build << 'DOCKERFILE'
+          ARG PHP_VERSION=8.4
+          FROM --platform=$TARGETPLATFORM php:${PHP_VERSION}-zts
+
+          RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --default-toolchain 1.88.0
+          ENV PATH="/root/.cargo/bin:${PATH}"
+
+          RUN apt-get update && apt-get install -y \
+              pkg-config libclang-dev clang protobuf-compiler \
+              && rm -rf /var/lib/apt/lists/*
+
+          ARG BUILDER_VERSION=0.2
+          RUN cargo install folk-builder@${BUILDER_VERSION}
+
+          WORKDIR /build
+          COPY folk.build.toml .
+          RUN folk-builder build --config folk.build.toml --output-dir /build/
+          DOCKERFILE
+
+          docker buildx build \
+            --platform ${{ matrix.docker_platform }} \
+            --build-arg PHP_VERSION=${{ matrix.php }} \
+            --build-arg BUILDER_VERSION=${{ steps.manifest.outputs.builder_version }} \
+            --output type=local,dest=out/ \
+            -f Dockerfile.build .
+
+      - name: Find and package folk.so
+        run: |
+          SO_FILE=$(find out/ -name "folk.so" -o -name "libfolk.so" | head -1)
+          if [ -z "$SO_FILE" ]; then
+            echo "ERROR: folk.so not found in output"
+            find out/ -type f
+            exit 1
+          fi
+
+          VERSION=${{ steps.version.outputs.version }}
+          ASSET_NAME="folk-php${{ matrix.php }}-zts-${{ matrix.platform }}"
+          mkdir -p dist
+          cp "$SO_FILE" "dist/${ASSET_NAME}.so"
+          cd dist && sha256sum "${ASSET_NAME}.so" > "${ASSET_NAME}.so.sha256"
+          echo "ASSET_NAME=${ASSET_NAME}" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET_NAME }}
+          path: dist/
+
+  release:
+    name: Create GitHub Release
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ext-v${{ steps.version.outputs.version }}
+          name: Folk Extension v${{ steps.version.outputs.version }}
+          files: dist/**/*
+          generate_release_notes: false
+          body: |
+            ## Folk PHP Extension v${{ steps.version.outputs.version }}
+
+            Pre-built `folk.so` with all plugins (http, jobs, grpc, metrics, process).
+
+            ### Download
+
+            | PHP | Platform | File |
+            |-----|----------|------|
+            | 8.3 | Linux x86_64 | `folk-php8.3-zts-linux-x86_64.so` |
+            | 8.3 | Linux ARM64 | `folk-php8.3-zts-linux-aarch64.so` |
+            | 8.4 | Linux x86_64 | `folk-php8.4-zts-linux-x86_64.so` |
+            | 8.4 | Linux ARM64 | `folk-php8.4-zts-linux-aarch64.so` |
+
+            ### Install
+
+            ```bash
+            # Download for your platform
+            curl -L -o folk.so https://github.com/Folk-Project/folk-releases/releases/download/ext-v${{ steps.version.outputs.version }}/folk-php8.4-zts-linux-x86_64.so
+
+            # Copy to PHP extensions directory
+            cp folk.so $(php -r "echo ini_get('extension_dir');")/folk.so
+            echo "extension=folk.so" > $(php --ini | grep 'Scan' | awk '{print $NF}')/folk.ini
+
+            # Verify
+            php -r "echo folk_version();"
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,49 @@
+site_name: Folk
+site_description: High-performance PHP application server powered by Rust
+site_url: https://folk-project.github.io/folk-releases/
+repo_url: https://github.com/Folk-Project/folk-releases
+repo_name: Folk-Project/folk-releases
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - tables
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Configuration: configuration.md
+  - Plugins:
+      - HTTP: plugins/http.md
+      - Jobs: plugins/jobs.md
+      - gRPC: plugins/grpc.md
+      - Metrics: plugins/metrics.md
+      - Process: plugins/process.md
+  - Benchmarks: benchmarks.md

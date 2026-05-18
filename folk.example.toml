@@ -1,0 +1,134 @@
+# =============================================================================
+# Folk Application Server — Configuration Reference
+# =============================================================================
+#
+# Place this file as folk.toml in your project root.
+# All values shown below are defaults unless noted otherwise.
+#
+# Environment variable overrides: FOLK_{SECTION}_{FIELD}
+# Example: FOLK_WORKERS_COUNT=8, FOLK_HTTP_LISTEN=0.0.0.0:9000
+
+# -----------------------------------------------------------------------------
+# Server
+# -----------------------------------------------------------------------------
+[server]
+
+# Path to admin RPC Unix socket.
+rpc_socket = "/tmp/folk.sock"
+
+# Maximum time to wait for graceful shutdown after SIGTERM.
+shutdown_timeout = "30s"
+
+# -----------------------------------------------------------------------------
+# Workers
+# -----------------------------------------------------------------------------
+[workers]
+
+# Path to the PHP worker script.
+script = "vendor/bin/folk-worker"
+
+# PHP binary path.
+php = "php"
+
+# Number of worker threads. Values > 1 require PHP ZTS build.
+count = 4
+
+# Recycle a worker after this many requests (0 = no limit).
+max_jobs = 100000
+
+# Recycle a worker that has been alive longer than this.
+ttl = "3600s"
+
+# Recycle a worker exceeding this RSS in megabytes.
+max_memory_mb = 256
+
+# Per-request execution timeout. Worker is terminated on timeout.
+exec_timeout = "30s"
+
+# Maximum time to wait for a worker to boot and signal ready.
+boot_timeout = "30s"
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+[log]
+
+# Log level filter. Examples: "info", "warn", "debug", "folk_core=trace".
+filter = "info"
+
+# Output format: "text", "json", or "pretty".
+format = "text"
+
+# -----------------------------------------------------------------------------
+# HTTP Plugin
+# -----------------------------------------------------------------------------
+[http]
+
+# Listening address (IP:PORT).
+listen = "0.0.0.0:8080"
+
+# Maximum time to read the request body.
+read_timeout = "10s"
+
+# Maximum time to write the response.
+write_timeout = "30s"
+
+# -----------------------------------------------------------------------------
+# Jobs Plugin
+# -----------------------------------------------------------------------------
+[jobs]
+
+# Queue driver: "memory" or "redis".
+driver = "memory"
+
+# Redis connection URL (used when driver = "redis").
+redis_url = "redis://127.0.0.1:6379"
+
+# Queue definitions. At least one queue is required.
+[[jobs.queues]]
+name = "default"
+concurrency = 4
+max_retries = 3
+
+# Example: additional priority queue.
+# [[jobs.queues]]
+# name = "priority"
+# concurrency = 8
+# max_retries = 5
+
+# -----------------------------------------------------------------------------
+# gRPC Plugin
+# -----------------------------------------------------------------------------
+[grpc]
+
+# Listening address for the gRPC server.
+listen = "0.0.0.0:50051"
+
+# Proto files for gRPC reflection. Imports are resolved automatically.
+# When empty, reflection is disabled.
+proto = []
+
+# Example with proto files:
+# proto = ["proto/greeter.proto", "proto/orders.proto"]
+
+# -----------------------------------------------------------------------------
+# Metrics Plugin
+# -----------------------------------------------------------------------------
+[metrics]
+
+# Listening address for /metrics (Prometheus) and /health endpoints.
+listen = "0.0.0.0:9090"
+
+# -----------------------------------------------------------------------------
+# Process Plugin
+# -----------------------------------------------------------------------------
+# Managed background processes. Each process is supervised and can be
+# automatically restarted according to its restart policy.
+
+# Example:
+# [[process.processes]]
+# name = "queue-worker"
+# command = "php artisan queue:work --tries=3"
+# restart = "on_failure"    # "always", "on_failure", or "never"
+# max_restarts = 5
+# restart_delay = "2s"
