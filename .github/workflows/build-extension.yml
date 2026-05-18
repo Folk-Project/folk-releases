@@ -152,7 +152,7 @@ jobs:
 
     strategy:
       matrix:
-        php: ["8.3", "8.4"]
+        php: ["8.3", "8.4", "8.5"]
 
     steps:
       - uses: actions/checkout@v4
@@ -296,6 +296,7 @@ jobs:
             |-----|------|
             | 8.3 | `folk-php8.3-zts-darwin-aarch64.dylib` |
             | 8.4 | `folk-php8.4-zts-darwin-aarch64.dylib` |
+            | 8.5 | `folk-php8.5-zts-darwin-aarch64.dylib` |
 
             ### Install (Linux)
 
