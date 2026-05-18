@@ -19,11 +19,11 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Linux builds (Docker on self-hosted runner)
+  # Linux builds (Docker on ubuntu-latest, ARM via QEMU)
   # ---------------------------------------------------------------------------
   build-linux:
     name: PHP ${{ matrix.php }} — ${{ matrix.platform }}
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
@@ -49,6 +49,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        if: matrix.docker_platform == 'linux/arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Determine version
         id: version
