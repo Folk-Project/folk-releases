@@ -1,0 +1,24 @@
+name: Update Packagist
+
+on:
+  push:
+    branches: [main]
+    tags: ['[0-9]+.[0-9]+.[0-9]+']
+
+jobs:
+  packagist:
+    name: Notify Packagist
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Packagist
+        run: |
+          HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" -X POST \
+            "https://packagist.org/api/update-package?username=${{ secrets.PACKAGIST_USERNAME }}&apiToken=${{ secrets.PACKAGIST_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"repository":{"url":"https://github.com/Folk-Project/folk-releases"}}')
+          cat /tmp/response.txt
+          echo ""
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "Packagist API returned HTTP $HTTP_CODE"
+            exit 1
+          fi
