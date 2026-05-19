@@ -342,7 +342,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Notify Packagist
+
+  # ---------------------------------------------------------------------------
+  # Notify Packagist
+  # ---------------------------------------------------------------------------
+  packagist:
+    name: Notify Packagist
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Packagist
         run: |
           HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" -X POST \
             "https://packagist.org/api/update-package?username=${{ secrets.PACKAGIST_USERNAME }}&apiToken=${{ secrets.PACKAGIST_TOKEN }}" \
