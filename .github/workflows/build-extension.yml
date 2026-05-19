@@ -139,7 +139,7 @@ jobs:
             linux-aarch64) PIE_ARCH="arm64";  PIE_OS="linux"; PIE_LIBC="glibc" ;;
           esac
 
-          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-${PIE_ARCH}-${PIE_OS}-${PIE_LIBC}-nodebug-zts"
+          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-${PIE_ARCH}-${PIE_OS}-${PIE_LIBC}-zts"
 
           mkdir -p dist
           cp "$SO_FILE" "dist/folk.so"
@@ -257,7 +257,7 @@ jobs:
           fi
 
           VERSION="${{ steps.version.outputs.version }}"
-          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-arm64-darwin-bsdlibc-nodebug-zts"
+          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-arm64-darwin-bsdlibc-zts"
 
           mkdir -p dist
           cp "$SO_FILE" "dist/folk.dylib"
@@ -327,18 +327,18 @@ jobs:
 
             | PHP | Platform | File |
             |-----|----------|------|
-            | 8.2 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-x86_64-linux-glibc-nodebug-zts.zip` |
-            | 8.2 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-arm64-linux-glibc-nodebug-zts.zip` |
-            | 8.3 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-x86_64-linux-glibc-nodebug-zts.zip` |
-            | 8.3 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-arm64-linux-glibc-nodebug-zts.zip` |
-            | 8.4 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-x86_64-linux-glibc-nodebug-zts.zip` |
-            | 8.4 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-arm64-linux-glibc-nodebug-zts.zip` |
-            | 8.5 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-x86_64-linux-glibc-nodebug-zts.zip` |
-            | 8.5 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-arm64-linux-glibc-nodebug-zts.zip` |
-            | 8.2 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-arm64-darwin-bsdlibc-nodebug-zts.zip` |
-            | 8.3 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-arm64-darwin-bsdlibc-nodebug-zts.zip` |
-            | 8.4 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-arm64-darwin-bsdlibc-nodebug-zts.zip` |
-            | 8.5 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-arm64-darwin-bsdlibc-nodebug-zts.zip` |
+            | 8.2 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-x86_64-linux-glibc-zts.zip` |
+            | 8.2 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-arm64-linux-glibc-zts.zip` |
+            | 8.3 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-x86_64-linux-glibc-zts.zip` |
+            | 8.3 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-arm64-linux-glibc-zts.zip` |
+            | 8.4 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-x86_64-linux-glibc-zts.zip` |
+            | 8.4 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-arm64-linux-glibc-zts.zip` |
+            | 8.5 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-x86_64-linux-glibc-zts.zip` |
+            | 8.5 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-arm64-linux-glibc-zts.zip` |
+            | 8.2 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-arm64-darwin-bsdlibc-zts.zip` |
+            | 8.3 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-arm64-darwin-bsdlibc-zts.zip` |
+            | 8.4 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-arm64-darwin-bsdlibc-zts.zip` |
+            | 8.5 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-arm64-darwin-bsdlibc-zts.zip` |
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
