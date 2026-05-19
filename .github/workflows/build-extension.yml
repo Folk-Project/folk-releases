@@ -130,9 +130,8 @@ jobs:
         run: |
           cat > Dockerfile.build << 'DOCKERFILE'
           ARG RUST_TOOLCHAIN=1.88
-          FROM rust:${RUST_TOOLCHAIN} AS rust-src
-
           ARG PHP_VERSION=8.4
+          FROM rust:${RUST_TOOLCHAIN} AS rust-src
           FROM php:${PHP_VERSION}-zts
 
           COPY --from=rust-src /usr/local/cargo /usr/local/cargo
