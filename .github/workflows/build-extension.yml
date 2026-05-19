@@ -129,19 +129,23 @@ jobs:
       - name: Build folk.so in Docker
         run: |
           cat > Dockerfile.build << 'DOCKERFILE'
+          ARG RUST_TOOLCHAIN=1.88
+          FROM rust:${RUST_TOOLCHAIN} AS rust-src
+
           ARG PHP_VERSION=8.4
           FROM php:${PHP_VERSION}-zts
 
-          ARG RUST_TOOLCHAIN=1.88.0
-          RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-              | sh -s -- -y --default-toolchain ${RUST_TOOLCHAIN}
-          ENV PATH="/root/.cargo/bin:${PATH}"
+          COPY --from=rust-src /usr/local/cargo /usr/local/cargo
+          COPY --from=rust-src /usr/local/rustup /usr/local/rustup
+          ENV PATH="/usr/local/cargo/bin:${PATH}"
+          ENV RUSTUP_HOME="/usr/local/rustup"
+          ENV CARGO_HOME="/usr/local/cargo"
 
           RUN apt-get update && apt-get install -y \
               pkg-config libclang-dev clang protobuf-compiler \
               && rm -rf /var/lib/apt/lists/*
 
-          ARG BUILDER_VERSION=0.2
+          ARG BUILDER_VERSION=0.2.0
           RUN cargo install folk-builder@${BUILDER_VERSION}
 
           WORKDIR /build
@@ -152,7 +156,7 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.docker_platform }} \
             --build-arg PHP_VERSION=${{ matrix.php }} \
-            --build-arg RUST_TOOLCHAIN=${{ env.RUST_TOOLCHAIN }} \
+            --build-arg RUST_TOOLCHAIN=1.88 \
             --build-arg BUILDER_VERSION=${{ steps.manifest.outputs.builder_version }} \
             --cache-from type=gha,scope=${{ matrix.platform }}-php${{ matrix.php }} \
             --cache-to type=gha,mode=max,scope=${{ matrix.platform }}-php${{ matrix.php }} \
