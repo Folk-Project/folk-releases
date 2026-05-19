@@ -154,6 +154,8 @@ jobs:
             --build-arg PHP_VERSION=${{ matrix.php }} \
             --build-arg RUST_TOOLCHAIN=${{ env.RUST_TOOLCHAIN }} \
             --build-arg BUILDER_VERSION=${{ steps.manifest.outputs.builder_version }} \
+            --cache-from type=gha,scope=${{ matrix.platform }}-php${{ matrix.php }} \
+            --cache-to type=gha,mode=max,scope=${{ matrix.platform }}-php${{ matrix.php }} \
             --output type=local,dest=out/ \
             -f Dockerfile.build .
 
