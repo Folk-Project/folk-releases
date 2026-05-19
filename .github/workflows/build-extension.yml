@@ -341,3 +341,16 @@ jobs:
             | 8.5 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-arm64-darwin-bsdlibc-nodebug-zts.zip` |
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify Packagist
+        run: |
+          HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" -X POST \
+            "https://packagist.org/api/update-package?username=${{ secrets.PACKAGIST_USERNAME }}&apiToken=${{ secrets.PACKAGIST_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"repository":{"url":"https://github.com/Folk-Project/folk-releases"}}')
+          cat /tmp/response.txt
+          echo ""
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "Packagist API returned HTTP $HTTP_CODE"
+            exit 1
+          fi
