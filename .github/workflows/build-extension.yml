@@ -12,14 +12,16 @@ on:
 
 permissions:
   contents: write
+  packages: read
 
 env:
   CARGO_TERM_COLOR: always
   RUST_TOOLCHAIN: "1.88.0"
+  BASE_IMAGE: ghcr.io/folk-project/folk-build-base
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Linux builds (Docker on ubuntu-latest, ARM via QEMU)
+  # Linux builds — uses pre-built base image from GHCR
   # ---------------------------------------------------------------------------
   build-linux:
     name: PHP ${{ matrix.php }} — ${{ matrix.platform }}
@@ -32,33 +34,46 @@ jobs:
           - php: "8.3"
             platform: linux-x86_64
             docker_platform: linux/amd64
+            arch: amd64
           - php: "8.3"
             platform: linux-aarch64
             docker_platform: linux/arm64
+            arch: arm64
           - php: "8.4"
             platform: linux-x86_64
             docker_platform: linux/amd64
+            arch: amd64
           - php: "8.4"
             platform: linux-aarch64
             docker_platform: linux/arm64
+            arch: arm64
           - php: "8.5"
             platform: linux-x86_64
             docker_platform: linux/amd64
+            arch: amd64
           - php: "8.5"
             platform: linux-aarch64
             docker_platform: linux/arm64
+            arch: arm64
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up QEMU
-        if: matrix.docker_platform == 'linux/arm64'
+        if: matrix.arch == 'arm64'
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine version
         id: version
@@ -69,43 +84,19 @@ jobs:
             echo "version=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Parse manifest and generate folk.build.toml
-        id: manifest
+      - name: Generate folk.build.toml from manifest
         run: |
           python3 << 'SCRIPT'
-          import re, os, subprocess
-
-          def resolve_latest(crate, ver_spec):
-              """Resolve '0.2.*' or '0.2' to actual latest version from crates.io."""
-              if '*' not in ver_spec and ver_spec.count('.') == 2:
-                  return ver_spec  # already exact, e.g. "0.2.0"
-              prefix = ver_spec.replace('.*', '').replace('*', '')
-              out = subprocess.check_output(
-                  ['cargo', 'search', crate, '--limit=1'],
-                  text=True
-              )
-              # cargo search output: 'crate_name = "0.2.3"  # description'
-              m = re.search(rf'{re.escape(crate)}\s*=\s*"([^"]+)"', out)
-              if m and m.group(1).startswith(prefix):
-                  return m.group(1)
-              return prefix + '.0'  # fallback
+          import re
 
           with open('build-manifest.toml') as f:
               content = f.read()
 
-          # Extract builder version from [builder] section
-          m = re.search(r'\[builder\]\s*\nversion\s*=\s*"([^"]+)"', content)
-          builder_spec = m.group(1) if m else '0.2.*'
-          builder_ver = resolve_latest('folk-builder', builder_spec)
-          print(f'Builder: folk-builder@{builder_ver}')
-
-          # Extract plugin versions from [plugins] section
           plugins = re.findall(r'(folk-plugin-[\w-]+)\s*=\s*"([^"]+)"', content)
 
-          # Generate folk.build.toml
           lines = ['[build]', 'output = "folk"', '']
           for name, ver_spec in plugins:
-              ver = resolve_latest(name, ver_spec)
+              ver = ver_spec.replace('.*', '')
               key = name.replace('folk-plugin-', '')
               lines += [
                   '[[plugin]]',
@@ -114,53 +105,26 @@ jobs:
                   f'config_key = "{key}"',
                   '',
               ]
-              print(f'Plugin: {name}@{ver}')
+              print(f'Plugin: {name} = "{ver}"')
 
           with open('folk.build.toml', 'w') as f:
               f.write('\n'.join(lines))
-
-          print('\n--- folk.build.toml ---')
-          print(open('folk.build.toml').read())
-
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f'builder_version={builder_ver}\n')
           SCRIPT
 
-      - name: Build folk.so in Docker
+      - name: Build folk.so
         run: |
-          cat > Dockerfile.build << 'DOCKERFILE'
-          ARG RUST_TOOLCHAIN=1.88
-          ARG PHP_VERSION=8.4
-          FROM rust:${RUST_TOOLCHAIN} AS rust-src
-          FROM php:${PHP_VERSION}-zts
-
-          COPY --from=rust-src /usr/local/cargo /usr/local/cargo
-          COPY --from=rust-src /usr/local/rustup /usr/local/rustup
-          ENV PATH="/usr/local/cargo/bin:${PATH}"
-          ENV RUSTUP_HOME="/usr/local/rustup"
-          ENV CARGO_HOME="/usr/local/cargo"
-
-          RUN apt-get update && apt-get install -y \
-              pkg-config libclang-dev clang protobuf-compiler \
-              && rm -rf /var/lib/apt/lists/*
-
-          ARG BUILDER_VERSION=0.2.0
-          RUN cargo install folk-builder@${BUILDER_VERSION}
-
-          WORKDIR /build
+          cat > Dockerfile.ext << 'DOCKERFILE'
+          ARG BASE_IMAGE
+          FROM ${BASE_IMAGE}
           COPY folk.build.toml .
           RUN folk-builder build --config folk.build.toml --output-dir /build/
           DOCKERFILE
 
           docker buildx build \
             --platform ${{ matrix.docker_platform }} \
-            --build-arg PHP_VERSION=${{ matrix.php }} \
-            --build-arg RUST_TOOLCHAIN=1.88 \
-            --build-arg BUILDER_VERSION=${{ steps.manifest.outputs.builder_version }} \
-            --cache-from type=gha,scope=${{ matrix.platform }}-php${{ matrix.php }} \
-            --cache-to type=gha,mode=max,scope=${{ matrix.platform }}-php${{ matrix.php }} \
+            --build-arg BASE_IMAGE=${{ env.BASE_IMAGE }}:php${{ matrix.php }}-${{ matrix.arch }} \
             --output type=local,dest=out/ \
-            -f Dockerfile.build .
+            -f Dockerfile.ext .
 
       - name: Package folk.so
         run: |
@@ -223,20 +187,18 @@ jobs:
       - name: Install build deps
         run: brew install protobuf llvm
 
-      - name: Parse manifest and generate folk.build.toml
+      - name: Parse manifest and install folk-builder
         id: manifest
         run: |
           python3 << 'SCRIPT'
           import re, os, subprocess
 
           def resolve_latest(crate, ver_spec):
-              """Resolve '0.2.*' or '0.2' to actual latest version from crates.io."""
               if '*' not in ver_spec and ver_spec.count('.') == 2:
                   return ver_spec
               prefix = ver_spec.replace('.*', '').replace('*', '')
               out = subprocess.check_output(
-                  ['cargo', 'search', crate, '--limit=1'],
-                  text=True
+                  ['cargo', 'search', crate, '--limit=1'], text=True
               )
               m = re.search(rf'{re.escape(crate)}\s*=\s*"([^"]+)"', out)
               if m and m.group(1).startswith(prefix):
@@ -268,9 +230,6 @@ jobs:
 
           with open('folk.build.toml', 'w') as f:
               f.write('\n'.join(lines))
-
-          print('\n--- folk.build.toml ---')
-          print(open('folk.build.toml').read())
 
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f'builder_version={builder_ver}\n')
