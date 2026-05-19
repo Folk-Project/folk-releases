@@ -8,7 +8,7 @@ on:
         required: true
   push:
     tags:
-      - 'ext-v*'
+      - '[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
   contents: write
@@ -82,7 +82,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            echo "version=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
+            echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
           fi
 
       - name: Generate folk.build.toml from manifest
@@ -122,7 +122,7 @@ jobs:
             "$IMAGE" \
             sh -c "folk-builder build --config folk.build.toml --output-dir /out/"
 
-      - name: Package folk.so
+      - name: Package folk.so (PIE format)
         run: |
           SO_FILE=$(find out/ -name "folk.so" -o -name "libfolk.so" | head -1)
           if [ -z "$SO_FILE" ]; then
@@ -131,11 +131,21 @@ jobs:
             exit 1
           fi
 
-          ASSET_NAME="folk-php${{ matrix.php }}-zts-${{ matrix.platform }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Map platform to PIE naming: {arch}-{os}-{libc}
+          case "${{ matrix.platform }}" in
+            linux-x86_64)  PIE_ARCH="x86_64"; PIE_OS="linux"; PIE_LIBC="glibc" ;;
+            linux-aarch64) PIE_ARCH="arm64";  PIE_OS="linux"; PIE_LIBC="glibc" ;;
+          esac
+
+          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-${PIE_ARCH}-${PIE_OS}-${PIE_LIBC}-nodebug-zts"
+
           mkdir -p dist
-          cp "$SO_FILE" "dist/${ASSET_NAME}.so"
-          cd dist && sha256sum "${ASSET_NAME}.so" > "${ASSET_NAME}.so.sha256"
-          echo "ASSET_NAME=${ASSET_NAME}" >> $GITHUB_ENV
+          cp "$SO_FILE" "dist/folk.so"
+          cd dist && zip "${PIE_NAME}.zip" folk.so && rm folk.so
+          sha256sum "${PIE_NAME}.zip" > "${PIE_NAME}.zip.sha256"
+          echo "ASSET_NAME=${PIE_NAME}" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -164,7 +174,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            echo "version=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
+            echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
           fi
 
       - name: Install PHP (ZTS)
@@ -237,7 +247,7 @@ jobs:
       - name: Build folk.so
         run: folk-builder build --config folk.build.toml --output-dir .
 
-      - name: Package folk.dylib
+      - name: Package folk.dylib (PIE format)
         run: |
           SO_FILE=$(find . -maxdepth 1 -name "*.dylib" -o -name "*.so" | head -1)
           if [ -z "$SO_FILE" ]; then
@@ -246,11 +256,14 @@ jobs:
             exit 1
           fi
 
-          ASSET_NAME="folk-php${{ matrix.php }}-zts-darwin-aarch64"
+          VERSION="${{ steps.version.outputs.version }}"
+          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-arm64-darwin-bsdlibc-nodebug-zts"
+
           mkdir -p dist
-          cp "$SO_FILE" "dist/${ASSET_NAME}.dylib"
-          cd dist && shasum -a 256 "${ASSET_NAME}.dylib" > "${ASSET_NAME}.dylib.sha256"
-          echo "ASSET_NAME=${ASSET_NAME}" >> $GITHUB_ENV
+          cp "$SO_FILE" "dist/folk.dylib"
+          cd dist && zip "${PIE_NAME}.zip" folk.dylib && rm folk.dylib
+          shasum -a 256 "${PIE_NAME}.zip" > "${PIE_NAME}.zip.sha256"
+          echo "ASSET_NAME=${PIE_NAME}" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -275,7 +288,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            echo "version=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
+            echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
           fi
 
       - name: Download all artifacts
@@ -286,7 +299,7 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ext-v${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
           name: Folk Extension v${{ steps.version.outputs.version }}
           files: dist/**/*
           generate_release_notes: false
@@ -295,44 +308,36 @@ jobs:
 
             Pre-built `folk.so` with all plugins (http, jobs, grpc, metrics, process).
 
-            ### Linux (`.so`)
+            ### Install via PIE (recommended)
+
+            ```bash
+            pie install folk-project/ext-folk
+            ```
+
+            ### Manual install
+
+            Download the matching ZIP from assets below, extract, and copy to your PHP extension dir:
+
+            ```bash
+            cp folk.so $(php -r "echo ini_get('extension_dir');")/
+            echo "extension=folk" > $(php --ini | grep 'Scan' | awk '{print $NF}')/folk.ini
+            ```
+
+            ### Available binaries
 
             | PHP | Platform | File |
             |-----|----------|------|
-            | 8.2 | x86_64 | `folk-php8.2-zts-linux-x86_64.so` |
-            | 8.2 | ARM64 | `folk-php8.2-zts-linux-aarch64.so` |
-            | 8.3 | x86_64 | `folk-php8.3-zts-linux-x86_64.so` |
-            | 8.3 | ARM64 | `folk-php8.3-zts-linux-aarch64.so` |
-            | 8.4 | x86_64 | `folk-php8.4-zts-linux-x86_64.so` |
-            | 8.4 | ARM64 | `folk-php8.4-zts-linux-aarch64.so` |
-            | 8.5 | x86_64 | `folk-php8.5-zts-linux-x86_64.so` |
-            | 8.5 | ARM64 | `folk-php8.5-zts-linux-aarch64.so` |
-
-            ### macOS Apple Silicon (`.dylib`)
-
-            | PHP | File |
-            |-----|------|
-            | 8.2 | `folk-php8.2-zts-darwin-aarch64.dylib` |
-            | 8.3 | `folk-php8.3-zts-darwin-aarch64.dylib` |
-            | 8.4 | `folk-php8.4-zts-darwin-aarch64.dylib` |
-            | 8.5 | `folk-php8.5-zts-darwin-aarch64.dylib` |
-
-            ### Install (Linux)
-
-            ```bash
-            curl -L -o folk.so https://github.com/Folk-Project/folk-releases/releases/download/ext-v${{ steps.version.outputs.version }}/folk-php8.4-zts-linux-x86_64.so
-            cp folk.so $(php -r "echo ini_get('extension_dir');")/folk.so
-            echo "extension=folk.so" > $(php --ini | grep 'Scan' | awk '{print $NF}')/folk.ini
-            php -r "echo folk_version();"
-            ```
-
-            ### Install (macOS)
-
-            ```bash
-            curl -L -o folk.dylib https://github.com/Folk-Project/folk-releases/releases/download/ext-v${{ steps.version.outputs.version }}/folk-php8.4-zts-darwin-aarch64.dylib
-            cp folk.dylib $(php -r "echo ini_get('extension_dir');")/folk.dylib
-            echo "extension=folk.dylib" > $(php --ini | grep 'Scan' | awk '{print $NF}')/folk.ini
-            php -r "echo folk_version();"
-            ```
+            | 8.2 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-x86_64-linux-glibc-nodebug-zts.zip` |
+            | 8.2 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-arm64-linux-glibc-nodebug-zts.zip` |
+            | 8.3 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-x86_64-linux-glibc-nodebug-zts.zip` |
+            | 8.3 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-arm64-linux-glibc-nodebug-zts.zip` |
+            | 8.4 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-x86_64-linux-glibc-nodebug-zts.zip` |
+            | 8.4 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-arm64-linux-glibc-nodebug-zts.zip` |
+            | 8.5 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-x86_64-linux-glibc-nodebug-zts.zip` |
+            | 8.5 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-arm64-linux-glibc-nodebug-zts.zip` |
+            | 8.2 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-arm64-darwin-bsdlibc-nodebug-zts.zip` |
+            | 8.3 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-arm64-darwin-bsdlibc-nodebug-zts.zip` |
+            | 8.4 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-arm64-darwin-bsdlibc-nodebug-zts.zip` |
+            | 8.5 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-arm64-darwin-bsdlibc-nodebug-zts.zip` |
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
