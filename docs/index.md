@@ -19,12 +19,18 @@ Folk replaces nginx + php-fpm with a single binary that handles HTTP, gRPC, back
 ### 1. Install the extension
 
 ```bash
+pie install folk-project/ext-folk
+```
+
+See [Installation](installation.md) for Docker setup and building from source.
+
+### 2. Install the SDK
+
+```bash
 composer require folk/sdk
 ```
 
-The SDK includes a pre-built `folk.so` extension for your platform. See [Installation](installation.md) for manual setup.
-
-### 2. Create `folk.toml`
+### 3. Create `folk.toml`
 
 ```toml
 [workers]
@@ -35,7 +41,9 @@ count = 4
 listen = "0.0.0.0:8080"
 ```
 
-### 3. Run
+See [Configuration](configuration.md) for all available options.
+
+### 4. Run
 
 ```bash
 php vendor/bin/folk-worker
@@ -43,13 +51,40 @@ php vendor/bin/folk-worker
 
 Your application is now serving HTTP on port 8080 with 4 worker threads.
 
-## Laravel Integration
+## Laravel
+
+### 1. Install the extension
+
+```bash
+pie install folk-project/ext-folk
+```
+
+### 2. Install the package
 
 ```bash
 composer require folk/laravel
 ```
 
 Folk integrates with Laravel automatically via a service provider. HTTP routes, job dispatching, and gRPC handlers work out of the box.
+
+### 3. Create `folk.toml`
+
+```toml
+[workers]
+script = "vendor/bin/folk-worker"
+count = 4
+
+[http]
+listen = "0.0.0.0:8080"
+```
+
+See [Configuration](configuration.md) for all available options.
+
+### 4. Run
+
+```bash
+php vendor/bin/folk-worker
+```
 
 ## Performance
 

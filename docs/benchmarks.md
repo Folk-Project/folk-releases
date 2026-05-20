@@ -46,7 +46,3 @@ Full Laravel welcome page render.
 - Each test runs for 30 seconds after a warm-up period
 - Folk uses ZTS mode with 4 worker threads
 - Swoole, RoadRunner, and FrankenPHP use their default recommended configurations with 4 workers
-
-## Reproducing
-
-Benchmark Dockerfiles are available in the [smoke-laravel](https://github.com/Folk-Project/folk-releases) repository under `bench/raw/`.
