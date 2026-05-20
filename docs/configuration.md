@@ -43,6 +43,9 @@ filter = "info"   # "debug", "info", "warn", "error", or "folk_core=trace"
 format = "text"   # "text", "json", or "pretty"
 ```
 
+!!! note
+    The `RUST_LOG` environment variable takes precedence over `filter` if set.
+
 ## Plugins
 
 Each plugin has its own configuration section. See the plugin pages for details:

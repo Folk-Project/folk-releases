@@ -34,7 +34,7 @@ php = "php"
 count = 4
 
 # Recycle a worker after this many requests (0 = no limit).
-max_jobs = 100000
+max_jobs = 1000
 
 # Recycle a worker that has been alive longer than this.
 ttl = "3600s"
