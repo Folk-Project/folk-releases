@@ -2,6 +2,25 @@
 
 Managed background processes with automatic restart and supervision.
 
+## Features
+
+- Start, monitor, and restart background processes
+- 3 restart policies: `always`, `on_failure`, `never`
+- Max restart limit with configurable delay
+- Graceful shutdown (SIGTERM + timeout)
+- Health check integration — process status visible on `/health`
+- RPC: `process.list` (supervised process statuses)
+
+## Planned
+
+- Environment variables per process
+- Working directory
+- stdout/stderr capture and logging
+- Configurable stop timeout (currently 5s hardcoded)
+- Multiple process instances (numprocs)
+- Custom stop signal (TERM, INT, QUIT)
+- `process.restart` RPC
+
 ## Configuration
 
 ```toml

@@ -39,8 +39,29 @@ boot_timeout = "30s"               # Worker boot timeout
 
 ```toml
 [log]
-filter = "info"   # "debug", "info", "warn", "error", or "folk_core=trace"
+filter = "info"   # "debug", "info", "warn", "error"
 format = "text"   # "text", "json", or "pretty"
+```
+
+All output goes to stdout. The three formats share the same data structure (timestamp, level, plugin, message, context fields) — only the visual representation differs.
+
+**text** — compact, one line per event:
+```
+2026-05-20T14:30:00Z INFO  [http] 200 GET /api/users 12ms
+2026-05-20T14:30:01Z WARN  [process] restarting name=scheduler restarts=2
+```
+
+**json** — structured, for ELK/Loki/Grafana:
+```json
+{"ts":"2026-05-20T14:30:00Z","level":"INFO","plugin":"http","msg":"200 GET /api/users","status":200,"duration_ms":12}
+```
+
+**pretty** — multi-line, for debugging:
+```
+  2026-05-20T14:30:00Z INFO [http]
+    200 GET /api/users
+    status: 200
+    duration_ms: 12
 ```
 
 !!! note

@@ -2,6 +2,25 @@
 
 Native gRPC server with reflection support. Built on [tonic](https://github.com/hyperium/tonic).
 
+## Features
+
+- Unary gRPC calls with dispatch to PHP workers
+- Server reflection via proto files (grpcurl, Postman auto-discovery)
+- Automatic proto import resolution
+- gRPC framing and trailers
+- Metadata passthrough to PHP
+
+## Planned
+
+- TLS/SSL (rustls)
+- Max message size limits
+- Server-wide and per-RPC timeouts
+- HTTP/2 keepalive
+- Max concurrent streams
+- gRPC compression (gzip)
+- gRPC Health Checking Protocol (grpc.health.v1)
+- Server-side streaming
+
 ## Configuration
 
 ```toml

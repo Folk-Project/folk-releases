@@ -2,6 +2,25 @@
 
 Accepts HTTP connections and dispatches requests to PHP workers. Built on [hyper](https://hyper.rs/) and [axum](https://github.com/tokio-rs/axum).
 
+## Features
+
+- HTTP/1.1 server on hyper/axum
+- Zero-copy dispatch to PHP workers via channels
+- Request/response as structured `serde_json::Value`
+- Graceful shutdown
+- Configurable read/write timeouts
+
+## Planned
+
+- TLS/SSL (HTTPS via rustls)
+- HTTP/2 (h2c)
+- Gzip/Brotli/Zstd compression
+- HTTP access logging
+- Configurable max request size
+- Trusted proxies (X-Forwarded-For)
+- Static file serving
+- CORS
+
 ## Configuration
 
 ```toml

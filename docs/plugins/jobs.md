@@ -2,6 +2,24 @@
 
 Background job processing with in-memory or Redis-backed queues.
 
+## Features
+
+- In-memory and Redis drivers
+- Multiple named queues with independent concurrency
+- Retry with exponential backoff
+- RPC: `jobs.push` (add job), `jobs.stats` (queue depth)
+- Graceful shutdown — in-flight jobs complete before exit
+
+## Planned
+
+- Configurable retry delay and backoff strategy
+- Job execution timeout
+- Dead letter queue for failed jobs
+- Delayed jobs (scheduled for future)
+- Priority queues
+- Unified driver config (host/port/user/password/db)
+- Additional drivers (SQS, AMQP, NATS)
+
 ## Configuration
 
 ```toml
