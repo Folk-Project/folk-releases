@@ -25,7 +25,7 @@ shutdown_timeout = "30s"          # Graceful shutdown timeout
 script = "vendor/bin/folk-worker"  # PHP worker script
 php = "php"                        # PHP binary path
 count = 4                          # Worker threads (>1 requires ZTS)
-max_jobs = 100000                  # Recycle after N requests (0 = never)
+max_jobs = 1000                    # Recycle after N requests (0 = never)
 ttl = "3600s"                      # Recycle after this lifetime
 max_memory_mb = 256                # Recycle if RSS exceeds this
 exec_timeout = "30s"               # Per-request timeout
@@ -73,7 +73,7 @@ shutdown_timeout = "10s"
 [workers]
 script = "vendor/bin/folk-worker"
 count = 4
-max_jobs = 100000
+max_jobs = 1000
 
 [log]
 filter = "info"
