@@ -2,52 +2,49 @@
 
 ## Requirements
 
-- PHP 8.3+ with **ZTS** (Zend Thread Safety) for multi-worker mode
-- Linux x86_64 or aarch64 (macOS support planned)
+- PHP 8.2+ with **ZTS** (Zend Thread Safety) for multi-worker mode
+- Linux x86_64/aarch64 or macOS Apple Silicon
 
-## Via Composer (recommended)
+## Via PIE (recommended)
 
-```bash
-composer require folk/sdk
-```
-
-The SDK will automatically download the pre-built `folk.so` extension matching your platform.
-
-For Laravel projects:
+[PIE](https://github.com/php/pie) is the modern PHP extension installer from the PHP Foundation.
 
 ```bash
-composer require folk/laravel
+pie install folk-project/ext-folk
 ```
+
+PIE will automatically download a pre-built binary for your platform. No Rust toolchain needed.
 
 ## Via Docker
 
-The simplest way to get started. No local Rust toolchain needed.
-
 ```dockerfile
-FROM php:8.4-zts AS builder
+FROM php:8.4-zts
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | sh -s -- -y --default-toolchain 1.88.0
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-RUN apt-get update && apt-get install -y \
-    pkg-config libclang-dev clang protobuf-compiler \
+RUN apt-get update && apt-get install -y unzip curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN cargo install folk-builder@0.2.0
+RUN docker-php-ext-install pcntl sockets
 
-WORKDIR /build
-COPY folk.build.toml .
-RUN folk-builder build --config folk.build.toml --output-dir /build/
+RUN curl -Lo /usr/local/bin/pie https://github.com/php/pie/releases/latest/download/pie.phar \
+    && chmod +x /usr/local/bin/pie \
+    && pie install folk-project/ext-folk
 
-FROM php:8.4-zts
-COPY --from=builder /build/folk.so /usr/local/lib/php/extensions/folk.so
-RUN echo "extension=/usr/local/lib/php/extensions/folk.so" \
-    > /usr/local/etc/php/conf.d/folk.ini
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-COPY . /app
 WORKDIR /app
+COPY . .
+RUN composer install --no-dev
+
 CMD ["php", "vendor/bin/folk-worker"]
+```
+
+## Manual install
+
+Download the matching ZIP from [GitHub Releases](https://github.com/Folk-Project/folk-releases/releases), extract, and copy to your PHP extension directory:
+
+```bash
+cp folk.so $(php -r "echo ini_get('extension_dir');")/
+echo "extension=folk" > $(php --ini | grep 'Scan' | awk '{print $NF}')/folk.ini
 ```
 
 ## Build from Source
@@ -107,7 +104,7 @@ This produces `folk.so`. Copy it to your PHP extension directory:
 
 ```bash
 cp folk.so $(php -r "echo ini_get('extension_dir');")
-echo "extension=folk.so" > $(php --ini | grep 'Scan' | awk '{print $NF}')/folk.ini
+echo "extension=folk" > $(php --ini | grep 'Scan' | awk '{print $NF}')/folk.ini
 ```
 
 ## Verify Installation
@@ -117,5 +114,4 @@ php -m | grep folk
 # Should output: folk
 
 php -r "echo folk_version();"
-# Should output: folk-ext 0.2.3
 ```
