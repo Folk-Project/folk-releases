@@ -13,7 +13,7 @@ version = "0.2.*"
 
 [plugins]
 folk-plugin-http = "0.2.*"
-folk-plugin-jobs = "0.2.*"
+folk-plugin-jobs = "0.3.*"
 folk-plugin-grpc = "0.2.*"
 folk-plugin-metrics = "0.2.*"
 folk-plugin-process = "0.2.*"

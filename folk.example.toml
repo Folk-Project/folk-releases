@@ -81,20 +81,33 @@ write_timeout = "30s"
 # Queue driver: "memory" or "redis".
 driver = "memory"
 
-# Redis connection URL (used when driver = "redis").
-redis_url = "redis://127.0.0.1:6379"
+# Redis connection (used when driver = "redis").
+host = "127.0.0.1"
+port = 6379
+password = ""
+db = 0
 
 # Queue definitions. At least one queue is required.
 [[jobs.queues]]
 name = "default"
-concurrency = 4
-max_retries = 3
+concurrency = 4            # Concurrent workers for this queue
+max_retries = 3            # Retries before DLQ or discard
+retry_delay = "1s"         # Base delay between retries
+retry_backoff = "exponential"  # "exponential", "linear", or "fixed"
+job_timeout = "60s"        # Max execution time ("0s" = unlimited)
+# dead_letter_queue = "failed"  # Queue for failed jobs (omit to discard)
+priority = 10              # Lower = higher priority
 
-# Example: additional priority queue.
+# Example: high-priority queue with DLQ.
 # [[jobs.queues]]
-# name = "priority"
+# name = "critical"
 # concurrency = 8
 # max_retries = 5
+# retry_delay = "500ms"
+# retry_backoff = "exponential"
+# job_timeout = "30s"
+# dead_letter_queue = "failed"
+# priority = 1
 
 # -----------------------------------------------------------------------------
 # gRPC Plugin
