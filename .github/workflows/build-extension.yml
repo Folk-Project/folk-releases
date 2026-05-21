@@ -4,8 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (e.g. 0.1.0)"
+        description: "Release version (e.g. 0.2.0)"
         required: true
+      release_notes:
+        description: "Release notes (markdown). If empty, default text is used."
+        required: false
+        default: ""
   push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
@@ -21,10 +25,29 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Resolve version once, share across all jobs
+  # ---------------------------------------------------------------------------
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - name: Determine version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          fi
+
+  # ---------------------------------------------------------------------------
   # Linux builds — uses pre-built base image from GHCR
   # ---------------------------------------------------------------------------
   build-linux:
     name: PHP ${{ matrix.php }} — ${{ matrix.platform }}
+    needs: [prepare]
     runs-on: ubuntu-latest
 
     strategy:
@@ -64,6 +87,9 @@ jobs:
             docker_platform: linux/arm64
             arch: arm64
 
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -75,15 +101,6 @@ jobs:
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
-          fi
 
       - name: Generate folk.build.toml from manifest
         run: |
@@ -131,8 +148,6 @@ jobs:
             exit 1
           fi
 
-          VERSION="${{ steps.version.outputs.version }}"
-
           # Map platform to PIE naming: {arch}-{os}-{libc}
           case "${{ matrix.platform }}" in
             linux-x86_64)  PIE_ARCH="x86_64"; PIE_OS="linux"; PIE_LIBC="glibc" ;;
@@ -158,6 +173,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build-macos:
     name: PHP ${{ matrix.php }} — darwin-aarch64
+    needs: [prepare]
     runs-on: macos-latest
 
     strategy:
@@ -165,17 +181,11 @@ jobs:
       matrix:
         php: ["8.2", "8.3", "8.4", "8.5"]
 
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+
     steps:
       - uses: actions/checkout@v4
-
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
-          fi
 
       - name: Install PHP (ZTS)
         uses: shivammathur/setup-php@v2
@@ -256,7 +266,6 @@ jobs:
             exit 1
           fi
 
-          VERSION="${{ steps.version.outputs.version }}"
           PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-arm64-darwin-bsdlibc-zts"
 
           mkdir -p dist
@@ -276,72 +285,76 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     name: Create GitHub Release
-    needs: [build-linux, build-macos]
+    needs: [prepare, build-linux, build-macos]
     runs-on: ubuntu-latest
+
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
-          fi
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist/
 
+      - name: Prepare release body
+        id: body
+        run: |
+          NOTES="${{ github.event.inputs.release_notes }}"
+
+          {
+            echo 'body<<RELEASE_EOF'
+            echo "## Folk PHP Extension v${VERSION}"
+            echo ""
+
+            if [ -n "$NOTES" ]; then
+              echo "$NOTES"
+            else
+              echo "Pre-built \`folk.so\` with all plugins (http, jobs, grpc, metrics, process)."
+            fi
+
+            echo ""
+            echo "### Install via PIE (recommended)"
+            echo ""
+            echo '```bash'
+            echo "pie install folk-project/ext-folk"
+            echo '```'
+            echo ""
+            echo "### Manual install"
+            echo ""
+            echo "Download the matching ZIP from assets below, extract, and copy to your PHP extension dir:"
+            echo ""
+            echo '```bash'
+            echo 'cp folk.so $(php -r "echo ini_get('\''extension_dir'\'');")'
+            echo 'echo "extension=folk" > $(php --ini | grep '\''Scan'\'' | awk '\''{print $NF}'\'')/folk.ini'
+            echo '```'
+            echo ""
+            echo "### Available binaries"
+            echo ""
+            echo "| PHP | Platform | File |"
+            echo "|-----|----------|------|"
+            for php in 8.2 8.3 8.4 8.5; do
+              echo "| ${php} | Linux x86_64 | \`php_folk-${VERSION}_php${php}-x86_64-linux-glibc-zts.zip\` |"
+              echo "| ${php} | Linux ARM64 | \`php_folk-${VERSION}_php${php}-arm64-linux-glibc-zts.zip\` |"
+            done
+            for php in 8.2 8.3 8.4 8.5; do
+              echo "| ${php} | macOS ARM64 | \`php_folk-${VERSION}_php${php}-arm64-darwin-bsdlibc-zts.zip\` |"
+            done
+            echo 'RELEASE_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: Folk Extension v${{ steps.version.outputs.version }}
+          tag_name: ${{ env.VERSION }}
+          name: Folk Extension v${{ env.VERSION }}
           files: dist/**/*
           generate_release_notes: false
-          body: |
-            ## Folk PHP Extension v${{ steps.version.outputs.version }}
-
-            Pre-built `folk.so` with all plugins (http, jobs, grpc, metrics, process).
-
-            ### Install via PIE (recommended)
-
-            ```bash
-            pie install folk-project/ext-folk
-            ```
-
-            ### Manual install
-
-            Download the matching ZIP from assets below, extract, and copy to your PHP extension dir:
-
-            ```bash
-            cp folk.so $(php -r "echo ini_get('extension_dir');")/
-            echo "extension=folk" > $(php --ini | grep 'Scan' | awk '{print $NF}')/folk.ini
-            ```
-
-            ### Available binaries
-
-            | PHP | Platform | File |
-            |-----|----------|------|
-            | 8.2 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-x86_64-linux-glibc-zts.zip` |
-            | 8.2 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-arm64-linux-glibc-zts.zip` |
-            | 8.3 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-x86_64-linux-glibc-zts.zip` |
-            | 8.3 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-arm64-linux-glibc-zts.zip` |
-            | 8.4 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-x86_64-linux-glibc-zts.zip` |
-            | 8.4 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-arm64-linux-glibc-zts.zip` |
-            | 8.5 | Linux x86_64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-x86_64-linux-glibc-zts.zip` |
-            | 8.5 | Linux ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-arm64-linux-glibc-zts.zip` |
-            | 8.2 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.2-arm64-darwin-bsdlibc-zts.zip` |
-            | 8.3 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.3-arm64-darwin-bsdlibc-zts.zip` |
-            | 8.4 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.4-arm64-darwin-bsdlibc-zts.zip` |
-            | 8.5 | macOS ARM64 | `php_folk-${{ steps.version.outputs.version }}_php8.5-arm64-darwin-bsdlibc-zts.zip` |
+          body: ${{ steps.body.outputs.body }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 
   # ---------------------------------------------------------------------------
   # Notify Packagist
