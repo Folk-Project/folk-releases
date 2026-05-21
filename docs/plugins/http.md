@@ -8,27 +8,69 @@ Accepts HTTP connections and dispatches requests to PHP workers. Built on [hyper
 - Zero-copy dispatch to PHP workers via channels
 - Request/response as structured `serde_json::Value`
 - Graceful shutdown
-- Configurable read/write timeouts
+- Configurable read/write timeouts (applied via tower-http)
+- Configurable max request body size (human-readable: `"10mb"`, `"512kb"`)
+- HTTP access logging (client IP, method, URI, status, duration)
+- Trusted proxies — correct X-Forwarded-For extraction behind load balancers
+- TLS/SSL via rustls (optional feature `tls`, enabled by default)
+- HTTP/2 cleartext (h2c) via hyper-util (optional feature `h2c`)
+- Response compression: gzip, brotli, zstd, deflate (configurable algorithms and min size)
+- Active connections counter (via `http.connections` RPC)
 
 ## Planned
 
-- TLS/SSL (HTTPS via rustls)
-- HTTP/2 (h2c)
-- Gzip/Brotli/Zstd compression
-- HTTP access logging
-- Configurable max request size
-- Trusted proxies (X-Forwarded-For)
 - Static file serving
 - CORS
+- Per-route timeouts and body limits
+- Rate limiting
 
 ## Configuration
 
 ```toml
 [http]
-listen = "0.0.0.0:8080"    # Listening address
-read_timeout = "10s"        # Max time to read request body
-write_timeout = "30s"       # Max time to write response
+listen = "0.0.0.0:8080"        # Listening address
+read_timeout = "10s"            # Max time to read request body
+write_timeout = "30s"           # Max time to write response (returns 504 on timeout)
+max_request_size = "10mb"       # Max request body size ("10mb", "512kb", or integer bytes)
+access_log = false              # Enable HTTP access logging
+trusted_proxies = []            # Trusted CIDR subnets for X-Forwarded-For
+h2c = false                     # Enable HTTP/2 cleartext (without TLS)
+
+# TLS — if set, the server listens on HTTPS (HTTP/2 via ALPN automatic)
+# [http.tls]
+# cert = "/path/to/cert.pem"
+# key = "/path/to/key.pem"
+
+# Response compression
+# [http.compression]
+# enabled = true
+# algorithms = ["gzip", "br", "zstd"]   # in priority order
+# min_size = 256                          # min response size to compress (bytes)
 ```
+
+### Trusted Proxies
+
+When running behind a load balancer or reverse proxy, configure `trusted_proxies` to correctly extract the real client IP from the `X-Forwarded-For` header:
+
+```toml
+[http]
+trusted_proxies = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+```
+
+Folk uses the **rightmost non-trusted** algorithm — it walks the X-Forwarded-For chain from right to left and returns the first IP that is not in a trusted subnet. This is the secure standard approach that prevents spoofing.
+
+### Compression
+
+Enable response compression to reduce bandwidth:
+
+```toml
+[http.compression]
+enabled = true
+algorithms = ["gzip", "br"]    # supported: gzip, br, zstd, deflate
+min_size = "1kb"                # don't compress small responses
+```
+
+The server respects the client's `Accept-Encoding` header and selects the best matching algorithm from the configured list.
 
 ## How It Works
 
