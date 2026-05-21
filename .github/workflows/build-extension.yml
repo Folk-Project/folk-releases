@@ -7,7 +7,7 @@ on:
         description: "Release version (e.g. 0.2.0)"
         required: true
       release_notes:
-        description: "Release notes (markdown). If empty, default text is used."
+        description: "Release notes (one-liner, or leave empty to use RELEASE_NOTES.md from repo)"
         required: false
         default: ""
   push:
@@ -302,18 +302,22 @@ jobs:
       - name: Prepare release body
         id: body
         run: |
-          NOTES="${{ github.event.inputs.release_notes }}"
+          INPUT_NOTES="${{ github.event.inputs.release_notes }}"
+
+          # Priority: 1) workflow input  2) RELEASE_NOTES.md  3) default text
+          if [ -n "$INPUT_NOTES" ]; then
+            NOTES="$INPUT_NOTES"
+          elif [ -f RELEASE_NOTES.md ]; then
+            NOTES=$(cat RELEASE_NOTES.md)
+          else
+            NOTES="Pre-built \`folk.so\` with all plugins (http, jobs, grpc, metrics, process)."
+          fi
 
           {
             echo 'body<<RELEASE_EOF'
             echo "## Folk PHP Extension v${VERSION}"
             echo ""
-
-            if [ -n "$NOTES" ]; then
-              echo "$NOTES"
-            else
-              echo "Pre-built \`folk.so\` with all plugins (http, jobs, grpc, metrics, process)."
-            fi
+            echo "$NOTES"
 
             echo ""
             echo "### Install via PIE (recommended)"
