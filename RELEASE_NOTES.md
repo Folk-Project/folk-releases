@@ -1,5 +1,23 @@
 ### What's new
 
+- **Metrics plugin v0.2.1** — full config expansion (phase 31):
+  - `/ready` readiness probe (Kubernetes), `/health` simplified to liveness
+  - Configurable endpoint paths (`metrics_path`, `health_path`, `ready_path`)
+  - Metric prefix (`folk_*`)
+  - Per-plugin metric filtering via `[metrics.plugins]` (core/http/jobs/grpc/process)
+  - Declarative custom metrics from config (`[[metrics.collectors]]` — counter, gauge, histogram)
+  - RPC: `metrics.increment`, `metrics.observe`, `metrics.set`, `metrics.render`
+
+- **gRPC plugin v0.2.2** — production config expansion (phase 30):
+  - TLS/SSL via rustls (`[grpc.tls]`)
+  - HTTP/2 keepalive (`[grpc.keepalive]`)
+  - Max message size limits (`max_recv_message_size`, `max_send_message_size`)
+  - Server-wide RPC timeout
+  - Max concurrent streams
+  - gRPC compression (gzip)
+  - gRPC Health Checking Protocol (grpc.health.v1) — always enabled
+  - 6 Prometheus metrics (`folk_grpc_*`)
+
 - **Jobs plugin v0.3.0** — production-ready queue configuration:
   - Configurable retry: `retry_delay` (e.g. `"1s"`) and `retry_backoff` (`exponential`, `linear`, `fixed`)
   - Job execution timeout via `job_timeout` (e.g. `"60s"`, `"0s"` = no limit)
@@ -21,6 +39,7 @@
 - Jobs plugin config: `redis_url` replaced by `host`/`port`/`password`/`db`
 - Jobs RPC: `jobs.push` now expects JSON payload (msgpack no longer accepted)
 - Requires `folk/laravel` >= v0.3.0 for job dispatch compatibility
+- Metrics plugin: `/health` is now a simple liveness probe (always 200). Use `/ready` for readiness checks.
 
 ### Crate versions
 
@@ -28,8 +47,8 @@
 |-------|---------|
 | folk-plugin-http | 0.2.1 |
 | folk-plugin-jobs | 0.3.0 |
-| folk-plugin-grpc | 0.2.0 |
-| folk-plugin-metrics | 0.2.0 |
+| folk-plugin-grpc | 0.2.2 |
+| folk-plugin-metrics | 0.2.1 |
 | folk-plugin-process | 0.2.0 |
 | folk-core | 0.2.3 |
 | folk-ext | 0.2.3 |

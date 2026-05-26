@@ -118,9 +118,19 @@ max_retries = 3
 [grpc]
 listen = "0.0.0.0:50051"
 proto = ["proto/service.proto"]
+max_recv_message_size = "4mb"
+timeout = "30s"
 
 [metrics]
 listen = "0.0.0.0:9090"
+prefix = "folk"
+ready_path = "/ready"
+
+[[metrics.collectors]]
+name = "app_requests_total"
+type = "counter"
+help = "Total application requests"
+labels = ["method", "endpoint"]
 
 [[process.processes]]
 name = "scheduler"
