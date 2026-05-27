@@ -1,5 +1,16 @@
 ### What's new
 
+- **Process plugin v0.2.1** — full config expansion (phase 32):
+  - Environment variables per process (`[process.processes.env]`)
+  - Working directory (`directory = "/app"`)
+  - Configurable stop timeout (`stop_timeout`, was hardcoded 5s)
+  - Stop signal selection: `TERM`, `INT`, `QUIT`
+  - Multiple process instances (`numprocs = 4` → name:0..name:3)
+  - stdout/stderr capture: `inherit`, `null`, or `file` (append mode)
+  - Shell-aware command parsing via shell-words (quoted arguments)
+  - `process.restart` RPC — restart a named process on demand
+  - 5 Prometheus metrics: `folk_process_up`, `folk_process_restarts_total`, `folk_process_uptime_seconds`, `folk_process_exit_code`, `folk_process_status`
+
 - **Metrics plugin v0.2.1** — full config expansion (phase 31):
   - `/ready` readiness probe (Kubernetes), `/health` simplified to liveness
   - Configurable endpoint paths (`metrics_path`, `health_path`, `ready_path`)
@@ -49,6 +60,6 @@
 | folk-plugin-jobs | 0.3.0 |
 | folk-plugin-grpc | 0.2.2 |
 | folk-plugin-metrics | 0.2.1 |
-| folk-plugin-process | 0.2.0 |
+| folk-plugin-process | 0.2.1 |
 | folk-core | 0.2.3 |
 | folk-ext | 0.2.3 |
