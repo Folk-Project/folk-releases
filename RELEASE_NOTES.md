@@ -17,8 +17,8 @@
 |---------|---------|------|
 | folk/sdk | 0.2.4 | packagist |
 | folk/laravel | 0.2.3 | packagist |
-| folk-core | 0.2.4 | crates.io |
-| folk-ext | 0.2.4 | crates.io |
+| folk-core | 0.2.5 | crates.io |
+| folk-ext | 0.2.5 | crates.io |
 | folk-plugin-http | 0.2.2 | crates.io |
 | folk-plugin-jobs | 0.3.0 | crates.io |
 | folk-plugin-grpc | 0.2.2 | crates.io |
