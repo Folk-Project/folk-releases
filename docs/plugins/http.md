@@ -10,7 +10,7 @@ Accepts HTTP connections and dispatches requests to PHP workers. Built on [hyper
 - Graceful shutdown
 - Configurable read/write timeouts (applied via tower-http)
 - Configurable max request body size (human-readable: `"10mb"`, `"512kb"`)
-- HTTP access logging (client IP, method, URI, status, duration)
+- HTTP access logging (client IP, method, URI, status, duration, response bytes)
 - Trusted proxies — correct X-Forwarded-For extraction behind load balancers
 - TLS/SSL via rustls (optional feature `tls`, enabled by default)
 - HTTP/2 cleartext (h2c) via hyper-util (optional feature `h2c`)

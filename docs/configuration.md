@@ -41,9 +41,28 @@ boot_timeout = "30s"               # Worker boot timeout
 [log]
 filter = "info"   # "debug", "info", "warn", "error"
 format = "text"   # "text", "json", or "pretty"
+
+[log.plugins]     # Per-plugin log level overrides
+http = "warn"     # Only warnings and errors from HTTP plugin
+jobs = "debug"    # Verbose logging from jobs plugin
+core = "info"     # Core server logging
 ```
 
-All output goes to stdout. The three formats share the same data structure (timestamp, level, plugin, message, context fields) — only the visual representation differs.
+### Per-Plugin Log Levels
+
+The `[log.plugins]` section lets you set per-plugin log levels using friendly names. No need to know Rust crate names — Folk maps them automatically:
+
+| Config key | Rust target |
+|------------|-------------|
+| `http` | `folk_plugin_http` |
+| `jobs` | `folk_plugin_jobs` |
+| `grpc` | `folk_plugin_grpc` |
+| `metrics` | `folk_plugin_metrics` |
+| `process` | `folk_plugin_process` |
+| `core` | `folk_core` |
+| `ext` | `folk_ext` |
+
+All output goes to stdout. The three formats share the same data structure (timestamp, level, target, message, context fields) — only the visual representation differs.
 
 **text** — compact, one line per event:
 ```
@@ -103,8 +122,13 @@ max_jobs = 1000
 filter = "info"
 format = "json"
 
+[log.plugins]
+http = "warn"
+process = "debug"
+
 [http]
 listen = "0.0.0.0:8080"
+access_log = true
 
 [jobs]
 driver = "redis"
