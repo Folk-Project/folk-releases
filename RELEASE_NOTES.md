@@ -1,30 +1,26 @@
 ### What's new
 
-- **folk-core v0.2.4 + folk-plugin-http v0.2.2** — structured logging (phase 33):
-  - Per-plugin log levels via `[log.plugins]` — friendly names (`http`, `jobs`, `core`) mapped to Rust crate targets
-  - JSON format: `flatten_event` for flat structure with `target` field (ELK/Loki/Grafana ready)
-  - HTTP access log now includes `response_bytes` field
-  - `RUST_LOG` env var still takes precedence over config
+- **folk/sdk v0.2.4 + folk/laravel v0.2.3** — SDK refactor & dead code removal (phase 37):
+  - Removed all legacy transport code: `Protocol/` namespace, `Rpc/RpcClient`, `ForkMasterLoop`, `runPipe()`, `runExtension()`
+  - `WorkerLoop::run()` simplified to direct `folk_worker_run()` call only
+  - `GrpcRouter` moved from folk-laravel to `Folk\Sdk\Grpc\GrpcRouter` (framework-agnostic)
+  - New `ResettableInterface` — typed contract for request resetters
+  - `HandlerLoop::registerResetter()` now requires `ResettableInterface` instead of `object`
+  - New `PsrHttpHandler` abstract base for PSR-7 frameworks (Spiral, Symfony, Yii3)
+  - `bin/folk-worker` replaced with framework-agnostic entry point
+  - folk-laravel: all 4 resetters implement `ResettableInterface`, fork-mode hook removed
+  - folk-core (Rust): removed 3 dead crates (`folk-protocol`, `folk-runtime-pipe`, `folk-runtime-fork`), deprecated `folk` binary, orphaned `rpc_registry.rs`/`rpc_server.rs`
 
-- **Process plugin v0.2.1** — full config expansion (phase 32):
-  - Environment variables per process (`[process.processes.env]`)
-  - Working directory (`directory = "/app"`)
-  - Configurable stop timeout (`stop_timeout`, was hardcoded 5s)
-  - Stop signal selection: `TERM`, `INT`, `QUIT`
-  - Multiple process instances (`numprocs = 4` → name:0..name:3)
-  - stdout/stderr capture: `inherit`, `null`, or `file` (append mode)
-  - Shell-aware command parsing via shell-words (quoted arguments)
-  - `process.restart` RPC — restart a named process on demand
-  - 5 Prometheus metrics: `folk_process_up`, `folk_process_restarts_total`, `folk_process_uptime_seconds`, `folk_process_exit_code`, `folk_process_status`
+### Versions
 
-### Crate versions
-
-| Crate | Version |
-|-------|---------|
-| folk-plugin-http | 0.2.2 |
-| folk-plugin-jobs | 0.3.0 |
-| folk-plugin-grpc | 0.2.2 |
-| folk-plugin-metrics | 0.2.1 |
-| folk-plugin-process | 0.2.1 |
-| folk-core | 0.2.4 |
-| folk-ext | 0.2.4 |
+| Package | Version | Type |
+|---------|---------|------|
+| folk/sdk | 0.2.4 | packagist |
+| folk/laravel | 0.2.3 | packagist |
+| folk-core | 0.2.4 | crates.io |
+| folk-ext | 0.2.4 | crates.io |
+| folk-plugin-http | 0.2.2 | crates.io |
+| folk-plugin-jobs | 0.3.0 | crates.io |
+| folk-plugin-grpc | 0.2.2 | crates.io |
+| folk-plugin-metrics | 0.2.1 | crates.io |
+| folk-plugin-process | 0.2.1 | crates.io |
