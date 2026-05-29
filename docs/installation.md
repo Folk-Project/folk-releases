@@ -35,7 +35,12 @@ WORKDIR /app
 COPY . .
 RUN composer install --no-dev
 
-CMD ["php", "vendor/bin/folk-worker"]
+# For Laravel:
+CMD ["php", "vendor/folk/laravel/bin/folk-server"]
+# For Spiral:
+# CMD ["php", "vendor/folk/spiral/bin/folk-server"]
+# For plain SDK:
+# CMD ["php", "vendor/bin/folk-worker"]
 ```
 
 ## Manual install

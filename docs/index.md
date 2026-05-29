@@ -53,37 +53,58 @@ Your application is now serving HTTP on port 8080 with 4 worker threads.
 
 ## Laravel
 
-### 1. Install the extension
+### 1. Install
 
 ```bash
 pie install folk-project/ext-folk
-```
-
-### 2. Install the package
-
-```bash
 composer require folk/laravel
 ```
 
 Folk integrates with Laravel automatically via a service provider. HTTP routes, job dispatching, and gRPC handlers work out of the box.
 
-### 3. Create `folk.toml`
+### 2. Create `folk.toml`
 
 ```toml
 [workers]
-script = "vendor/bin/folk-worker"
+script = "vendor/folk/laravel/bin/folk-server"
 count = 4
 
 [http]
 listen = "0.0.0.0:8080"
 ```
 
-See [Configuration](configuration.md) for all available options.
-
-### 4. Run
+### 3. Run
 
 ```bash
-php vendor/bin/folk-worker
+php vendor/folk/laravel/bin/folk-server
+```
+
+## Spiral
+
+### 1. Install
+
+```bash
+pie install folk-project/ext-folk
+composer require folk/spiral
+```
+
+Folk integrates with Spiral Framework 3.x. HTTP pipeline, job processing, gRPC, and Cycle ORM cleanup work out of the box.
+
+### 2. Create `folk.toml`
+
+```toml
+[workers]
+script = "vendor/folk/spiral/bin/folk-server"
+count = 4
+
+[http]
+listen = "0.0.0.0:8080"
+```
+
+### 3. Run
+
+```bash
+php vendor/folk/spiral/bin/folk-server
 ```
 
 ## Performance
