@@ -1,24 +1,22 @@
 ### What's new
 
-- **folk/sdk v0.2.4 + folk/laravel v0.2.3** — SDK refactor & dead code removal (phase 37):
-  - Removed all legacy transport code: `Protocol/` namespace, `Rpc/RpcClient`, `ForkMasterLoop`, `runPipe()`, `runExtension()`
-  - `WorkerLoop::run()` simplified to direct `folk_worker_run()` call only
-  - `GrpcRouter` moved from folk-laravel to `Folk\Sdk\Grpc\GrpcRouter` (framework-agnostic)
-  - New `ResettableInterface` — typed contract for request resetters
-  - `HandlerLoop::registerResetter()` now requires `ResettableInterface` instead of `object`
-  - New `PsrHttpHandler` abstract base for PSR-7 frameworks (Spiral, Symfony, Yii3)
-  - `bin/folk-worker` replaced with framework-agnostic entry point
-  - folk-laravel: all 4 resetters implement `ResettableInterface`, fork-mode hook removed
-  - folk-core (Rust): removed 3 dead crates (`folk-protocol`, `folk-runtime-pipe`, `folk-runtime-fork`), deprecated `folk` binary, orphaned `rpc_registry.rs`/`rpc_server.rs`
+- **folk-core/folk-ext v0.2.6** — Automatic opcache warmup (phase 41):
+  - Before spawning worker threads, Folk automatically compiles all files from Composer classmap into shared opcache
+  - Uses `opcache_compile_file()` — safe compilation without code execution, no side effects
+  - New `zts::eval_string()` FFI wrapper (`zend_eval_string`) — no temp files needed
+  - ~10x faster worker cold start (compile step eliminated, only symbol registration remains)
+  - Works with any framework (Laravel, Symfony, Yii, vanilla PHP) — no configuration needed
+  - `warmup = false` in `[workers]` to disable if needed (default: enabled)
+  - Graceful degradation: if no Composer classmap found or opcache disabled, warmup is skipped with a warning
 
 ### Versions
 
 | Package | Version | Type |
 |---------|---------|------|
+| folk-core | 0.2.6 | crates.io |
+| folk-ext | 0.2.6 | crates.io |
 | folk/sdk | 0.2.4 | packagist |
 | folk/laravel | 0.2.3 | packagist |
-| folk-core | 0.2.5 | crates.io |
-| folk-ext | 0.2.5 | crates.io |
 | folk-plugin-http | 0.2.2 | crates.io |
 | folk-plugin-jobs | 0.3.0 | crates.io |
 | folk-plugin-grpc | 0.2.2 | crates.io |

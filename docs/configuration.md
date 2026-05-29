@@ -30,7 +30,11 @@ ttl = "3600s"                      # Recycle after this lifetime
 max_memory_mb = 256                # Recycle if RSS exceeds this
 exec_timeout = "30s"               # Per-request timeout
 boot_timeout = "30s"               # Worker boot timeout
+warmup = true                      # Opcache warmup before worker spawn
 ```
+
+!!! note "Opcache warmup"
+    When `warmup` is enabled (default), Folk automatically compiles all files from `vendor/composer/autoload_classmap.php` into shared opcache before spawning workers. This eliminates the parse+compile overhead on first requests — workers start with hot opcache immediately. Works with any framework or vanilla PHP project that uses Composer. Requires `composer install --optimize-autoloader` for full coverage.
 
 !!! note "Worker recycling"
     Workers are recycled (terminated and respawned) when they exceed `max_jobs`, `ttl`, or `max_memory_mb`. This prevents memory leaks from accumulating. The main thread worker is never recycled.
@@ -162,4 +166,4 @@ command = "php artisan schedule:work"
 restart = "always"
 ```
 
-See [`folk.example.toml`](https://github.com/Folk-Project/folk-releases/blob/main/folk.example.toml) for a fully commented reference.
+See the [Configuration Reference](reference.md) for a fully commented `folk.toml` with all options.
