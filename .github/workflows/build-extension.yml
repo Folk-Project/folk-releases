@@ -125,12 +125,12 @@ jobs:
           path: dist/
 
   # ---------------------------------------------------------------------------
-  # Linux aarch64 builds (QEMU emulation)
+  # Linux aarch64 builds (native ARM runner)
   # ---------------------------------------------------------------------------
   build-linux-arm64:
     name: PHP ${{ matrix.php }} — linux-aarch64
     needs: [prepare]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     strategy:
       fail-fast: false
@@ -142,11 +142,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -181,8 +176,8 @@ jobs:
       - name: Build folk.so
         run: |
           IMAGE="${{ env.BASE_IMAGE }}:php${{ matrix.php }}-arm64"
-          docker pull --platform linux/arm64 "$IMAGE"
-          docker run --rm --platform linux/arm64 \
+          docker pull "$IMAGE"
+          docker run --rm \
             -v "$PWD/folk.build.toml:/build/folk.build.toml:ro" \
             -v "$PWD/out:/out" \
             "$IMAGE" \
