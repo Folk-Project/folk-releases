@@ -107,6 +107,62 @@ listen = "0.0.0.0:8080"
 php vendor/folk/spiral/bin/folk-server
 ```
 
+## Symfony
+
+### 1. Install
+
+```bash
+pie install folk-project/ext-folk
+composer require folk/symfony
+```
+
+Folk integrates with Symfony 6.4/7.x/8.x. HTTP kernel, services resetter, and Doctrine ORM cleanup work out of the box.
+
+### 2. Create `folk.toml`
+
+```toml
+[workers]
+script = "vendor/folk/symfony/bin/folk-server"
+count = 4
+
+[http]
+listen = "0.0.0.0:8080"
+```
+
+### 3. Run
+
+```bash
+php vendor/folk/symfony/bin/folk-server
+```
+
+## Yii 3
+
+### 1. Install
+
+```bash
+pie install folk-project/ext-folk
+composer require folk/yii3
+```
+
+Folk integrates with Yii 3 via its native PSR-15 pipeline. HTTP handling, state resetter, and Cycle ORM cleanup work out of the box.
+
+### 2. Create `folk.toml`
+
+```toml
+[workers]
+script = "vendor/folk/yii3/bin/folk-server"
+count = 4
+
+[http]
+listen = "0.0.0.0:8080"
+```
+
+### 3. Run
+
+```bash
+php vendor/folk/yii3/bin/folk-server
+```
+
 ## Performance
 
 Benchmarks on Docker (2 CPU, 512MB, 4 workers):

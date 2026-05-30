@@ -39,6 +39,10 @@ RUN composer install --no-dev
 CMD ["php", "vendor/folk/laravel/bin/folk-server"]
 # For Spiral:
 # CMD ["php", "vendor/folk/spiral/bin/folk-server"]
+# For Symfony:
+# CMD ["php", "vendor/folk/symfony/bin/folk-server"]
+# For Yii 3:
+# CMD ["php", "vendor/folk/yii3/bin/folk-server"]
 # For plain SDK:
 # CMD ["php", "vendor/bin/folk-worker"]
 ```
