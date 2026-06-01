@@ -1,20 +1,18 @@
 ### What's new
 
-- **folk-core/folk-ext v0.2.6** — Automatic opcache warmup (phase 41):
-  - Before spawning worker threads, Folk automatically compiles all files from Composer classmap into shared opcache
-  - Uses `opcache_compile_file()` — safe compilation without code execution, no side effects
-  - New `zts::eval_string()` FFI wrapper (`zend_eval_string`) — no temp files needed
-  - ~10x faster worker cold start (compile step eliminated, only symbol registration remains)
-  - Works with any framework (Laravel, Symfony, Yii, vanilla PHP) — no configuration needed
-  - `warmup = false` in `[workers]` to disable if needed (default: enabled)
-  - Graceful degradation: if no Composer classmap found or opcache disabled, warmup is skipped with a warning
+- **folk-core/folk-ext v0.2.7** — Critical bugfix: `execute_script` return value normalization
+  - `folk_zts_execute_script` now explicitly returns 1 (success) / 0 (failure), matching `folk_zts_eval_string` convention
+  - Previously the raw `php_execute_script` result was passed through without normalization — PHP workers could not detect real script startup errors
+  - Fixed misleading `fopen` failure path that returned 0 with a "SUCCESS" comment
+  - Rust FFI wrapper unchanged — `if ret != 0 { Ok(()) }` was already correct for the normalized convention
+  - Fixes [#1](https://github.com/Folk-Project/folk-releases/issues/1)
 
 ### Versions
 
 | Package | Version | Type |
 |---------|---------|------|
-| folk-core | 0.2.6 | crates.io |
-| folk-ext | 0.2.6 | crates.io |
+| folk-core | 0.2.7 | crates.io |
+| folk-ext | 0.2.7 | crates.io |
 | folk/sdk | 0.2.4 | packagist |
 | folk/laravel | 0.2.3 | packagist |
 | folk-plugin-http | 0.2.2 | crates.io |
