@@ -12,6 +12,12 @@
   - Removed stray `folk-plugin-http/` directory from the repository
   - Fixes [#2](https://github.com/Folk-Project/folk-releases/issues/2), [#6](https://github.com/Folk-Project/folk-releases/issues/6), [#24](https://github.com/Folk-Project/folk-releases/issues/24)
 
+- **folk-plugin-jobs v0.3.1** — Atomic job promotion + deadlock fix
+  - RedisDriver: `promote_delayed` now uses a **Lua script** for atomic ZRANGEBYSCORE → RPUSH → ZREM (no more job loss/duplication on crash)
+  - MemoryDriver: split lock scopes to prevent ABBA deadlock between `delayed` and `queues` mutexes
+  - Errors in RedisDriver are now propagated instead of silently swallowed
+  - Fixes [#3](https://github.com/Folk-Project/folk-releases/issues/3), [#4](https://github.com/Folk-Project/folk-releases/issues/4)
+
 ### Versions
 
 | Package | Version | Type |
@@ -21,7 +27,7 @@
 | folk/sdk | 0.2.4 | packagist |
 | folk/laravel | 0.2.3 | packagist |
 | folk-plugin-http | 0.2.2 | crates.io |
-| folk-plugin-jobs | 0.3.0 | crates.io |
+| folk-plugin-jobs | 0.3.1 | crates.io |
 | folk-plugin-grpc | 0.2.3 | crates.io |
 | folk-plugin-metrics | 0.2.1 | crates.io |
 | folk-plugin-process | 0.2.1 | crates.io |
