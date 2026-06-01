@@ -193,3 +193,7 @@ Folk runs as a **single PHP process** with an embedded Rust runtime:
 | gRPC Plugin | Native gRPC server with reflection |
 | Metrics Plugin | Prometheus `/metrics` + `/health` |
 | Process Plugin | Supervised background processes |
+
+## Contributing
+
+Found a bug or have an idea? See [Contributing](contributing.md) for how to report issues and propose features.

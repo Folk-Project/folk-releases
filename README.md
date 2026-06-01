@@ -35,6 +35,12 @@ php vendor/bin/folk-worker
 
 Pre-built extensions are available on the [Releases](https://github.com/Folk-Project/folk-releases/releases) page.
 
+## Contributing
+
+Found a bug or have an idea? See [Contributing Guide](https://folk-project.github.io/folk-releases/contributing/) for how to report issues and propose features.
+
+All issues are tracked in this repository: [Issues](https://github.com/Folk-Project/folk-releases/issues)
+
 ## License
 
 MIT
