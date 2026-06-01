@@ -1,5 +1,11 @@
 ### What's new
 
+- **folk-api v0.2.1** — Fix broken tests, add execute_value coverage
+  - Removed dead `execute_direct` tests (method was replaced by `execute_value` in phase 24)
+  - Added `execute_value_default_roundtrips_via_json` test
+  - `cargo test` now passes cleanly
+  - Fixes [#14](https://github.com/Folk-Project/folk-releases/issues/14)
+
 - **folk-core/folk-ext v0.2.7** — Critical bugfix: `execute_script` return value normalization
   - `folk_zts_execute_script` now explicitly returns 1 (success) / 0 (failure), matching `folk_zts_eval_string` convention
   - Previously the raw `php_execute_script` result was passed through without normalization — PHP workers could not detect real script startup errors
@@ -22,6 +28,7 @@
 
 | Package | Version | Type |
 |---------|---------|------|
+| folk-api | 0.2.1 | crates.io |
 | folk-core | 0.2.7 | crates.io |
 | folk-ext | 0.2.7 | crates.io |
 | folk/sdk | 0.2.4 | packagist |
