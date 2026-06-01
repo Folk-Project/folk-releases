@@ -32,7 +32,6 @@ php = "php"                            # PHP binary path
 count = 4                              # Worker threads (>1 requires PHP ZTS)
 max_jobs = 1000                        # Recycle worker after N requests (0 = never)
 ttl = "3600s"                          # Recycle worker after this lifetime
-max_memory_mb = 256                    # Recycle worker if RSS exceeds this (MB)
 exec_timeout = "30s"                   # Per-request execution timeout
 boot_timeout = "30s"                   # Max time to wait for worker ready signal
 warmup = true                          # Compile Composer classmap into opcache before spawn

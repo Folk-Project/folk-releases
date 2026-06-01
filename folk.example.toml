@@ -39,9 +39,6 @@ max_jobs = 1000
 # Recycle a worker that has been alive longer than this.
 ttl = "3600s"
 
-# Recycle a worker exceeding this RSS in megabytes.
-max_memory_mb = 256
-
 # Per-request execution timeout. Worker is terminated on timeout.
 exec_timeout = "30s"
 
