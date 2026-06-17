@@ -1,5 +1,9 @@
 ### What's new
 
+- **folk-plugin-process v0.2.3** — Empty/absent `[process]` config no longer crashes ([#36](https://github.com/Folk-Project/folk-releases/issues/36))
+  - A config with no `[process]` section (or an empty one) previously failed on startup with `Config error: invalid [process] configuration`. The process plugin is always compiled in, so an absent section is a normal "supervise nothing" case — it now starts cleanly, like the other plugins
+  - Config errors now surface the underlying reason (e.g. `missing field \`command\``) instead of a generic message
+
 - **folk-core / folk-ext v0.2.9** — Hot reload / dev watch mode ([#28](https://github.com/Folk-Project/folk-releases/issues/28))
   - New `[dev]` config: `watch`, `watch_paths`, `watch_extensions`, `debounce`. Disabled by default
   - A file watcher recycles workers when watched `.php` files change — code edits are picked up without a manual restart; in-flight requests complete first (graceful)
@@ -13,3 +17,4 @@
 |---------|---------|------|
 | folk-core | 0.2.9 | crates.io |
 | folk-ext | 0.2.9 | crates.io |
+| folk-plugin-process | 0.2.3 | crates.io |
