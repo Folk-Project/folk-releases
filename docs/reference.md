@@ -30,6 +30,7 @@ shutdown_timeout = "30s"               # Max time for graceful shutdown after SI
 script = "vendor/bin/folk-worker"      # PHP worker entry point
 php = "php"                            # PHP binary path
 count = 4                              # Worker threads (>1 requires PHP ZTS)
+max_concurrent_per_worker = 1          # Concurrent requests per worker (only 1 supported; >1 reserved)
 max_jobs = 1000                        # Recycle worker after N requests (0 = never)
 ttl = "3600s"                          # Recycle worker after this lifetime
 exec_timeout = "30s"                   # Per-request execution timeout

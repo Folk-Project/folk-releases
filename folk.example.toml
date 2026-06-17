@@ -33,6 +33,11 @@ php = "php"
 # Number of worker threads. Values > 1 require PHP ZTS build.
 count = 4
 
+# Max concurrent requests per worker. Only 1 is currently supported (sync
+# frameworks); values > 1 are reserved for a future async runtime (PHP Fibers)
+# and are clamped to 1 with a warning.
+max_concurrent_per_worker = 1
+
 # Recycle a worker after this many requests (0 = no limit).
 max_jobs = 1000
 
