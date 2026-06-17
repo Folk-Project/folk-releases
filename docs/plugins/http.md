@@ -101,3 +101,22 @@ $loop->run();
 ```
 
 With Laravel, HTTP routing works automatically via the Folk service provider.
+
+## Request ID
+
+Every request is assigned a unique, monotonic id. Read it from PHP with the
+`\Folk\Sdk\Folk::requestId()` facade (or the native `folk_request_id()` function)
+to correlate your application logs with Folk's Rust-side access log:
+
+```php
+use Folk\Sdk\Folk;
+
+Log::withContext(['request_id' => Folk::requestId()]);
+```
+
+`requestId()` returns `0` outside of a request, or when the Folk extension is not
+loaded (e.g. in unit tests), so it is always safe to call.
+
+> Concurrency note: the `[workers] max_concurrent_per_worker` setting currently
+> supports only `1` (one request per worker at a time). Values `> 1` are reserved
+> for a future async runtime and are clamped to `1` with a warning.
