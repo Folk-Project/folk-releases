@@ -37,6 +37,22 @@ boot_timeout = "30s"                   # Max time to wait for worker ready signa
 warmup = true                          # Compile Composer classmap into opcache before spawn
 
 # =============================================================================
+# Dev mode (hot reload)
+# =============================================================================
+# Watch PHP files and recycle workers on change — for development only.
+# Disabled by default. Requires PHP ZTS with workers.count > 1: the main PHP
+# thread (worker #1) is not recyclable, so single-worker servers cannot fully
+# hot reload. On change, Folk gracefully recycles recyclable workers after their
+# current request completes; each restarted worker re-bootstraps and re-reads
+# the changed code. Keep opcache.validate_timestamps = 1 in dev (the default)
+# so OPcache picks up edits; do not pair enable_cli = 1 with validate_timestamps = 0.
+[dev]
+watch = false                          # Enable file watcher + hot reload
+watch_paths = ["app", "src", "routes", "config"]  # Directories watched recursively
+watch_extensions = ["php"]             # Extensions that trigger a reload
+debounce = "300ms"                     # Collapse a burst of file events into one reload
+
+# =============================================================================
 # Logging
 # =============================================================================
 [log]

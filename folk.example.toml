@@ -51,6 +51,26 @@ boot_timeout = "30s"
 warmup = true
 
 # -----------------------------------------------------------------------------
+# Dev mode (hot reload) — development only, disabled by default
+# -----------------------------------------------------------------------------
+# Watch PHP files and recycle workers on change so edits are picked up without
+# a manual restart. Requires PHP ZTS with count > 1 (the main PHP thread is not
+# recyclable). Keep opcache.validate_timestamps = 1 in dev so OPcache sees edits.
+[dev]
+
+# Enable the file watcher + hot reload.
+watch = false
+
+# Directories watched recursively (relative to the project root).
+watch_paths = ["app", "src", "routes", "config"]
+
+# File extensions that trigger a reload.
+watch_extensions = ["php"]
+
+# Debounce window: collapse a burst of file events into one reload.
+debounce = "300ms"
+
+# -----------------------------------------------------------------------------
 # Logging
 # -----------------------------------------------------------------------------
 [log]

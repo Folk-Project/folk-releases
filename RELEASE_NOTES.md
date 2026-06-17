@@ -1,22 +1,15 @@
 ### What's new
 
-- **folk-plugin-http v0.2.4** — Fix binary body corruption ([#13](https://github.com/Folk-Project/folk-releases/issues/13))
-  - Binary HTTP bodies (multipart/form-data, application/octet-stream) were irreversibly corrupted by `from_utf8_lossy`
-  - Now uses base64 fallback: if body is not valid UTF-8, encodes as base64 and adds `body_encoding` field
-  - Response path also supports `body_encoding: "base64"` from PHP side
-
-- **folk-sdk v0.2.6** — Base64 body encoding support ([#13](https://github.com/Folk-Project/folk-releases/issues/13))
-  - `HttpRequest::fromPayload()` decodes base64 body when `body_encoding === "base64"`
-  - `HttpResponse::toPayload()` encodes non-UTF-8 bodies as base64 automatically
-
-- **folk-builder v0.2.2** — Path canonicalization + version fix ([#25](https://github.com/Folk-Project/folk-releases/issues/25), [#26](https://github.com/Folk-Project/folk-releases/issues/26))
-  - `folk_api_path` is now canonicalized before TempDir build — relative paths no longer break `cargo build`
-  - CLI version uses `env!("CARGO_PKG_VERSION")` instead of hardcoded `"0.1.0"`
+- **folk-core / folk-ext v0.2.9** — Hot reload / dev watch mode ([#28](https://github.com/Folk-Project/folk-releases/issues/28))
+  - New `[dev]` config: `watch`, `watch_paths`, `watch_extensions`, `debounce`. Disabled by default
+  - A file watcher recycles workers when watched `.php` files change — code edits are picked up without a manual restart; in-flight requests complete first (graceful)
+  - Requires PHP ZTS with `workers.count > 1`: the main PHP thread (worker #1) is not recyclable, so single-worker servers cannot fully hot reload
+  - No OPcache reset on reload (it raced live worker recycling and could crash). Keep `opcache.validate_timestamps = 1` in dev (default) so edits are seen
+  - Also: forward-compat with `ext-php-rs` 0.15.15 (`ArrayKey::ZendString`)
 
 ### Versions
 
 | Package | Version | Type |
 |---------|---------|------|
-| folk-plugin-http | 0.2.4 | crates.io |
-| folk-builder | 0.2.2 | crates.io |
-| folk-sdk | 0.2.6 | packagist |
+| folk-core | 0.2.9 | crates.io |
+| folk-ext | 0.2.9 | crates.io |
