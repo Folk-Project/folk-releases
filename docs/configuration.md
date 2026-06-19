@@ -91,21 +91,27 @@ All output goes to stdout. The three formats share the same data structure (time
 
 ### Request correlation (`request_id`)
 
-Every request carries a unique, monotonic `request_id`. From PHP, read it with
-`\Folk\Sdk\Folk::requestId()` (returns `0` outside a request or without the
+Every request carries a globally-unique `request_id` — a **UUID v7** (time-ordered,
+so it sorts by creation time, and unique across instances and restarts). It is a
+single correlation key you can use across aggregated logs (Loki, ELK, Grafana)
+without also filtering by host or pod. From PHP, read it with
+`\Folk\Sdk\Folk::requestId()` (returns `""` outside a request or without the
 extension).
 
-The framework adapters surface it in your application logs automatically:
+The same id appears in two places automatically:
 
-- **folk/laravel** (≥ 0.3.4) — `request_id` is added to the `extra` of every
-  record on the default log channel, so `Log::info(...)` lines carry it.
-- **folk/symfony** (≥ 0.1.1) — when the logger is Monolog (e.g. with
-  `symfony/monolog-bundle`), `request_id` is added to the `extra` of records on
-  the main channel. Without Monolog it is a no-op.
+- **HTTP access log** — the `request_id` field of each access-log line (enable
+  with `[http] access_log = true`), so the Rust-side line and the PHP application
+  log of the same request share one id.
+- **Application logs** via the framework adapters:
+  - **folk/laravel** (≥ 0.3.5) — `request_id` is added to the `extra` of every
+    record on the default log channel, so `Log::info(...)` lines carry it.
+  - **folk/symfony** (≥ 0.1.2) — when the logger is Monolog (e.g. with
+    `symfony/monolog-bundle`), `request_id` is added to the `extra` of records on
+    the main channel. Without Monolog it is a no-op.
 
 The id is read when each record is written, so it never leaks between requests
 on a recycled worker and is simply absent when there is no request in flight.
-Use it to correlate application logs with other per-request output.
 
 ## Plugins
 

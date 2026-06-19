@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       builder_version:
-        description: 'folk-builder version (e.g. 0.2.2)'
+        description: 'folk-builder version (e.g. 0.2.4)'
         required: true
-        default: '0.2.2'
+        default: '0.2.4'
 
 permissions:
   contents: read

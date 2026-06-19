@@ -104,9 +104,11 @@ With Laravel, HTTP routing works automatically via the Folk service provider.
 
 ## Request ID
 
-Every request is assigned a unique, monotonic id. Read it from PHP with the
-`\Folk\Sdk\Folk::requestId()` facade (or the native `folk_request_id()` function)
-to correlate your application logs with Folk's Rust-side access log:
+Every request is assigned a globally-unique id — a **UUID v7** (time-ordered and
+unique across instances and restarts). When `access_log = true`, it is included
+as the `request_id` field of each access-log line, so the Rust-side line and your
+PHP application log of the same request share one id. Read it from PHP with the
+`\Folk\Sdk\Folk::requestId()` facade (or the native `folk_request_id()` function):
 
 ```php
 use Folk\Sdk\Folk;
@@ -114,7 +116,7 @@ use Folk\Sdk\Folk;
 Log::withContext(['request_id' => Folk::requestId()]);
 ```
 
-`requestId()` returns `0` outside of a request, or when the Folk extension is not
+`requestId()` returns `""` outside of a request, or when the Folk extension is not
 loaded (e.g. in unit tests), so it is always safe to call.
 
 > Concurrency note: the `[workers] max_concurrent_per_worker` setting currently
