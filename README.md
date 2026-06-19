@@ -6,18 +6,43 @@ Folk replaces nginx + php-fpm with a single binary that handles HTTP, gRPC, back
 
 ## Documentation
 
-📖 **[folk-project.github.io/folk-releases](https://folk-project.github.io/folk-releases/)**
+📖 **Full docs: [folk-project.github.io/folk-releases](https://folk-project.github.io/folk-releases/)**
+
+| Guide | Link |
+|-------|------|
+| Installation (PIE, Docker, build from source) | [installation](https://folk-project.github.io/folk-releases/installation/) |
+| Configuration (`folk.toml`) | [configuration](https://folk-project.github.io/folk-releases/configuration/) |
+| Full config reference | [reference](https://folk-project.github.io/folk-releases/reference/) |
+| Plugins — [HTTP](https://folk-project.github.io/folk-releases/plugins/http/) · [Jobs](https://folk-project.github.io/folk-releases/plugins/jobs/) · [gRPC](https://folk-project.github.io/folk-releases/plugins/grpc/) · [Metrics](https://folk-project.github.io/folk-releases/plugins/metrics/) · [Process](https://folk-project.github.io/folk-releases/plugins/process/) | [plugins](https://folk-project.github.io/folk-releases/) |
+| Benchmarks | [benchmarks](https://folk-project.github.io/folk-releases/benchmarks/) |
 
 ## Quick Start
 
+**1. Install the extension** (requires PHP 8.2+ ZTS) — see [Installation](https://folk-project.github.io/folk-releases/installation/) for Docker and from-source:
+
 ```bash
-composer require folk/sdk
+pie install folk-project/ext-folk
 ```
 
-Create `folk.toml`:
+**2. Install the SDK or a framework adapter:**
+
+```bash
+composer require folk/sdk        # plain PHP
+# composer require folk/laravel  # Laravel
+# composer require folk/spiral   # Spiral 3.x
+# composer require folk/symfony  # Symfony 6.4 / 7.x / 8.x
+# composer require folk/yii3     # Yii 3
+```
+
+**3. Create `folk.toml`** ([all options](https://folk-project.github.io/folk-releases/configuration/)):
 
 ```toml
 [workers]
+# plain SDK:   vendor/bin/folk-worker
+# Laravel:     vendor/folk/laravel/bin/folk-server
+# Spiral:      vendor/folk/spiral/bin/folk-server
+# Symfony:     vendor/folk/symfony/bin/folk-server
+# Yii 3:       vendor/folk/yii3/bin/folk-server
 script = "vendor/bin/folk-worker"
 count = 4
 
@@ -25,11 +50,13 @@ count = 4
 listen = "0.0.0.0:8080"
 ```
 
-Run:
+**4. Run:**
 
 ```bash
-php vendor/bin/folk-worker
+php vendor/bin/folk-worker   # or the framework's bin/folk-server
 ```
+
+Your app is now serving HTTP on port 8080 across 4 worker threads.
 
 ## Downloads
 
