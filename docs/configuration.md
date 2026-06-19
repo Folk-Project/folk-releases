@@ -89,6 +89,24 @@ All output goes to stdout. The three formats share the same data structure (time
 !!! note
     The `RUST_LOG` environment variable takes precedence over `filter` if set.
 
+### Request correlation (`request_id`)
+
+Every request carries a unique, monotonic `request_id`. From PHP, read it with
+`\Folk\Sdk\Folk::requestId()` (returns `0` outside a request or without the
+extension).
+
+The framework adapters surface it in your application logs automatically:
+
+- **folk/laravel** (≥ 0.3.4) — `request_id` is added to the `extra` of every
+  record on the default log channel, so `Log::info(...)` lines carry it.
+- **folk/symfony** (≥ 0.1.1) — when the logger is Monolog (e.g. with
+  `symfony/monolog-bundle`), `request_id` is added to the `extra` of records on
+  the main channel. Without Monolog it is a no-op.
+
+The id is read when each record is written, so it never leaks between requests
+on a recycled worker and is simply absent when there is no request in flight.
+Use it to correlate application logs with other per-request output.
+
 ## Plugins
 
 Each plugin has its own configuration section. See the plugin pages for details:
