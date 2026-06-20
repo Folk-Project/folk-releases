@@ -16,13 +16,12 @@ Accepts HTTP connections and dispatches requests to PHP workers. Built on [hyper
 - HTTP/2 cleartext (h2c) via hyper-util (optional feature `h2c`)
 - Response compression: gzip, brotli, zstd, deflate (configurable algorithms and min size)
 - Active connections counter (via `http.connections` RPC)
+- **Lua hook pipeline** — attach Lua scripts to request lifecycle events without writing Rust code
 
 ## Planned
 
 - Static file serving
-- CORS
 - Per-route timeouts and body limits
-- Rate limiting
 
 ## Configuration
 
@@ -101,6 +100,79 @@ $loop->run();
 ```
 
 With Laravel, HTTP routing works automatically via the Folk service provider.
+
+## Lua Hook Pipeline
+
+Attach Lua scripts to points in the HTTP request lifecycle — before or after PHP, without writing or recompiling Rust code. Useful for rate limiting, auth checks, header manipulation, CORS, audit logging, and A/B routing.
+
+### Hook events
+
+| Event | When | Can short-circuit | Context available |
+|-------|------|:-----------------:|-------------------|
+| `request.before` | After HTTP parsing, before PHP dispatch | yes | method, path, query, headers, client_ip, request_id, extra |
+| `request.error` | PHP returned error or exec_timeout fired | no | same + `error` string |
+| `response.headers` | PHP response headers received, before body | yes | status, resp_headers |
+| `response.after` | Full PHP response received, before sending | yes | status, resp_headers, body |
+
+### Configuration
+
+```toml
+[[http.hooks]]
+event = "request.before"
+lua = "hooks/rate_limit.lua"
+mode = "sync"           # "sync" (critical path) | "async" (fire-and-forget)
+timeout_ms = 5          # sync only: abort hook after N ms; default 5
+on_error = "fail_open"  # "fail_open" (skip + WARN) | "fail_closed" (→ 500)
+```
+
+Multiple `[[http.hooks]]` entries are allowed. On each event, all `sync` hooks run first (in declaration order), then all `async` hooks fire-and-forget. A short-circuiting sync hook stops subsequent sync hooks and PHP dispatch; async hooks still run with `ctx.short_circuited = true`.
+
+### Writing Lua scripts
+
+The script receives a `ctx` global table. Return `nil` (or nothing) to continue; return a table to short-circuit:
+
+```lua
+-- hooks/rate_limit.lua
+if ctx.headers["x-api-key"] ~= "secret" then
+    return { status = 429, body = "Too Many Requests" }
+end
+```
+
+```lua
+-- hooks/cors.lua  (response.headers event)
+ctx.resp_headers["access-control-allow-origin"] = "*"
+ctx.resp_headers["access-control-allow-methods"] = "GET, POST, OPTIONS"
+```
+
+```lua
+-- hooks/inject.lua  (request.before — mutate before PHP sees it)
+ctx.headers["x-forwarded-host"] = ctx.headers["host"]
+ctx.extra["trace_start"] = "1"
+```
+
+**Context fields:**
+
+| Field | Events | Mutable | Notes |
+|-------|--------|:-------:|-------|
+| `ctx.method` | request.* | no | `"GET"`, `"POST"`, … |
+| `ctx.path` | request.* | no | URI path, e.g. `"/api/users"` |
+| `ctx.query` | request.* | no | Raw query string without `?` |
+| `ctx.client_ip` | request.* | no | Resolved client IP |
+| `ctx.request_id` | request.* | no | UUID v7; `""` outside request |
+| `ctx.headers` | request.* | yes (sync) | Mutations reach PHP |
+| `ctx.extra` | request.* | yes (sync) | Arbitrary bag; mutations reach PHP |
+| `ctx.error` | request.error | no | Error message or `"timeout"` |
+| `ctx.status` | response.* | no | HTTP status code |
+| `ctx.resp_headers` | response.* | yes (sync) | Mutations reach the client |
+| `ctx.body` | response.after | yes (sync) | Full response body as string |
+| `ctx.short_circuited` | all (async) | no | `true` if a prior sync hook short-circuited |
+
+### Error handling
+
+- `on_error = "fail_open"` (default) — if the Lua script errors, log WARN and continue pipeline.
+- `on_error = "fail_closed"` — if the Lua script errors, return HTTP 500. Use for security-critical hooks (auth, API-key check) where a failing script must not silently pass requests through.
+
+If a script file is missing or has a syntax error at startup, the hook is skipped with WARN and the server starts normally.
 
 ## Request ID
 

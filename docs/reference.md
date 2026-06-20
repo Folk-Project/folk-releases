@@ -90,6 +90,14 @@ h2c = false                            # HTTP/2 cleartext (without TLS)
 # algorithms = ["gzip", "br", "zstd"]  # Priority order. Also: "deflate"
 # min_size = 256                        # Min response size to compress (bytes)
 
+# Lua hook pipeline — zero or more entries
+# [[http.hooks]]
+# event = "request.before"             # "request.before" | "request.error" | "response.headers" | "response.after"
+# lua = "hooks/rate_limit.lua"         # Path to Lua script (relative to working directory)
+# mode = "sync"                        # "sync" (critical path) | "async" (fire-and-forget)
+# timeout_ms = 5                       # Sync-only: abort hook after N ms (fail_open)
+# on_error = "fail_open"               # "fail_open" (skip+WARN) | "fail_closed" (→ 500)
+
 # =============================================================================
 # Jobs Plugin
 # =============================================================================
