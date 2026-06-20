@@ -49,3 +49,9 @@ nav:
       - Process: plugins/process.md
   - Benchmarks: benchmarks.md
   - Contributing: contributing.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/telegram
+      link: https://t.me/folk_poject
+      name: Folk on Telegram

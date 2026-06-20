@@ -4,6 +4,8 @@
 
 Folk replaces nginx + php-fpm with a single binary that handles HTTP, gRPC, background jobs, metrics, and managed processes — all with zero-copy communication between Rust and PHP.
 
+💬 News and discussion: [Folk on Telegram](https://t.me/folk_poject)
+
 ## Features
 
 - **HTTP server** — Built on hyper/axum, dispatches requests to PHP workers
