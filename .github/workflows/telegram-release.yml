@@ -4,16 +4,25 @@ on:
   workflow_run:
     workflows: ["Build Extension"]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. 0.1.12)"
+        required: true
 
 jobs:
   notify:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: Get latest release info
+      - name: Get release info
         id: release
         run: |
-          release=$(gh api repos/${{ github.repository }}/releases/latest)
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            release=$(gh api repos/${{ github.repository }}/releases/tags/${{ github.event.inputs.tag }})
+          else
+            release=$(gh api repos/${{ github.repository }}/releases/latest)
+          fi
           echo "name=$(echo "$release" | jq -r '.name')"         >> $GITHUB_OUTPUT
           echo "tag=$(echo "$release"  | jq -r '.tag_name')"     >> $GITHUB_OUTPUT
           echo "url=$(echo "$release"  | jq -r '.html_url')"     >> $GITHUB_OUTPUT
