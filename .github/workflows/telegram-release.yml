@@ -1,21 +1,34 @@
 name: Telegram — announce release
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Build Extension"]
+    types: [completed]
 
 jobs:
   notify:
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      - name: Get latest release info
+        id: release
+        run: |
+          release=$(gh api repos/${{ github.repository }}/releases/latest)
+          echo "name=$(echo "$release" | jq -r '.name')"         >> $GITHUB_OUTPUT
+          echo "tag=$(echo "$release"  | jq -r '.tag_name')"     >> $GITHUB_OUTPUT
+          echo "url=$(echo "$release"  | jq -r '.html_url')"     >> $GITHUB_OUTPUT
+          # body may be multiline — write to file to avoid quoting issues
+          echo "$release" | jq -r '.body' > /tmp/rel_body.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Send release announcement to Telegram
         env:
           TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          REL_NAME: ${{ github.event.release.name }}
-          REL_TAG: ${{ github.event.release.tag_name }}
-          REL_URL: ${{ github.event.release.html_url }}
-          REL_BODY: ${{ github.event.release.body }}
+          REL_NAME: ${{ steps.release.outputs.name }}
+          REL_TAG: ${{ steps.release.outputs.tag }}
+          REL_URL: ${{ steps.release.outputs.url }}
         run: |
           set -euo pipefail
 
@@ -23,7 +36,7 @@ jobs:
           title=$(printf '%s' "${REL_NAME:-$REL_TAG}" | perl -CS -pe 's/&/&amp;/g; s/</&lt;/g; s/>/&gt;/g;')
 
           # body: strip markdown -> readable text, truncate by chars, then HTML-escape
-          body=$(printf '%s' "$REL_BODY" | perl -CS -0777 -ne '
+          body=$(cat /tmp/rel_body.txt | perl -CS -0777 -ne '
             s/```.*?```//gs;                 # drop fenced code blocks
             s/\\([`*_~#\[\]()\-])/$1/g;       # unescape \` \* \# ...
             s/`([^`]*)`/$1/g;                 # inline code -> text
