@@ -1,0 +1,40 @@
+name: Telegram — push issue for discussion
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  notify:
+    # only when the `discuss` label is added
+    if: github.event.label.name == 'discuss'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send issue to Telegram
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ISSUE_NUM: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+
+          snippet=$(printf '%s' "$ISSUE_BODY" | head -c 600)
+          if [ "$(printf '%s' "$ISSUE_BODY" | wc -c)" -gt 600 ]; then
+            snippet="${snippet}…"
+          fi
+
+          text=$(printf '💬 #%s · %s\n\n%s\n\n🔗 %s' \
+            "$ISSUE_NUM" "$ISSUE_TITLE" "$snippet" "$ISSUE_URL")
+
+          payload=$(jq -n \
+            --arg chat_id "$CHAT_ID" \
+            --arg text "$text" \
+            '{chat_id: $chat_id, text: $text, disable_web_page_preview: false}')
+
+          curl -sS --fail-with-body -X POST \
+            "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+            -H 'Content-Type: application/json' \
+            -d "$payload"

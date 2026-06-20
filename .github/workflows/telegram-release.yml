@@ -1,0 +1,39 @@
+name: Telegram — announce release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send release announcement to Telegram
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          REL_NAME: ${{ github.event.release.name }}
+          REL_TAG: ${{ github.event.release.tag_name }}
+          REL_URL: ${{ github.event.release.html_url }}
+          REL_BODY: ${{ github.event.release.body }}
+        run: |
+          set -euo pipefail
+          title="${REL_NAME:-$REL_TAG}"
+
+          # first ~600 chars of the notes, with an ellipsis if truncated
+          snippet=$(printf '%s' "$REL_BODY" | head -c 600)
+          if [ "$(printf '%s' "$REL_BODY" | wc -c)" -gt 600 ]; then
+            snippet="${snippet}…"
+          fi
+
+          text=$(printf '🚀 %s\n\n%s\n\n🔗 %s' "$title" "$snippet" "$REL_URL")
+
+          payload=$(jq -n \
+            --arg chat_id "$CHAT_ID" \
+            --arg text "$text" \
+            '{chat_id: $chat_id, text: $text, disable_web_page_preview: false}')
+
+          curl -sS --fail-with-body -X POST \
+            "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+            -H 'Content-Type: application/json' \
+            -d "$payload"
