@@ -6,8 +6,8 @@ on:
 
 jobs:
   notify:
-    # only when the `discuss` label is added
-    if: github.event.label.name == 'discuss'
+    # only when the `discuss` label is added by an authorized maintainer
+    if: github.event.label.name == 'discuss' && github.event.sender.login == 'melentev-av'
     runs-on: ubuntu-latest
     steps:
       - name: Send issue to Telegram
