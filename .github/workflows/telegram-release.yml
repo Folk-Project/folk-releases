@@ -18,20 +18,33 @@ jobs:
           REL_BODY: ${{ github.event.release.body }}
         run: |
           set -euo pipefail
-          title="${REL_NAME:-$REL_TAG}"
 
-          # first ~600 chars of the notes, with an ellipsis if truncated
-          snippet=$(printf '%s' "$REL_BODY" | head -c 600)
-          if [ "$(printf '%s' "$REL_BODY" | wc -c)" -gt 600 ]; then
-            snippet="${snippet}…"
-          fi
+          # title: plain text, HTML-escaped
+          title=$(printf '%s' "${REL_NAME:-$REL_TAG}" | perl -CS -pe 's/&/&amp;/g; s/</&lt;/g; s/>/&gt;/g;')
 
-          text=$(printf '🚀 %s\n\n%s\n\n🔗 %s' "$title" "$snippet" "$REL_URL")
+          # body: strip markdown -> readable text, truncate by chars, then HTML-escape
+          body=$(printf '%s' "$REL_BODY" | perl -CS -0777 -ne '
+            s/```.*?```//gs;                 # drop fenced code blocks
+            s/\\([`*_~#\[\]()\-])/$1/g;       # unescape \` \* \# ...
+            s/`([^`]*)`/$1/g;                 # inline code -> text
+            s/\*\*([^*]+)\*\*/$1/g;           # **bold** -> text
+            s/__([^_]+)__/$1/g;               # __bold__ -> text
+            s/^[ \t]*#{1,6}[ \t]*//mg;        # ## headings -> text
+            s/\[([^\]]+)\]\([^)]+\)/$1/g;     # [text](url) -> text
+            s/\n{3,}/\n\n/g;                  # collapse blank runs
+            s/^\s+|\s+$//g;                   # trim
+            if (length > 600) { $_ = substr($_, 0, 600) . "\x{2026}"; }
+            s/&/&amp;/g; s/</&lt;/g; s/>/&gt;/g;
+            print;
+          ')
+
+          text=$(printf '🚀 <b>%s</b>\n\n%s\n\n🔗 %s' \
+            "$title" "$body" "$REL_URL")
 
           payload=$(jq -n \
             --arg chat_id "$CHAT_ID" \
             --arg text "$text" \
-            '{chat_id: $chat_id, text: $text, disable_web_page_preview: false}')
+            '{chat_id: $chat_id, text: $text, parse_mode: "HTML", disable_web_page_preview: false}')
 
           curl -sS --fail-with-body -X POST \
             "https://api.telegram.org/bot${TOKEN}/sendMessage" \
