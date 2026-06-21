@@ -1,5 +1,10 @@
 ### What's new
 
+- **folk-plugin-http v0.3.8** — perf: request headers no longer copied into a `HashMap` on the no-hooks fast path ([#52](https://github.com/Folk-Project/folk-releases/issues/52))
+  - `handle_inner` unconditionally allocated a `HashMap<String, String>` from all request headers and constructed a full `RequestContext` on every request, even when no Lua hooks were configured
+  - At 10K rps with 20 headers per request this wasted ~200K `String` allocations per second on the no-hooks fast path
+  - Fix: header extraction and `RequestContext` construction are now gated on `state.hook_engine.is_some()`. `req_ctx` is `Option<RequestContext>` — `None` when no hooks are configured, eliminating all per-request allocation overhead
+
 - **folk-plugin-http v0.3.7** — fix: `compression.min_size` values above 65535 are now rejected at startup with a clear error ([#59](https://github.com/Folk-Project/folk-releases/issues/59))
   - `min_size` was stored as `usize` but silently cast to `u16` when passed to `tower_http::SizeAbove` — a value like `"100kb"` (102 400) wrapped around to ~2048 bytes, causing compression to fire on much smaller responses than intended, wasting CPU
   - Fix: `PluginFactory::create` now validates `min_size ≤ 65535` and returns a descriptive startup error if the limit is exceeded; the silent `as u16` cast is replaced with a `u16::try_from` with a clear panic-invariant comment
