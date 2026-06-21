@@ -1,100 +1,22 @@
 ### What's new
 
-- **folk-api v0.2.6** — fix: `ServerPluginWrapper::shutdown()` now logs run-loop errors instead of propagating them ([#68](https://github.com/Folk-Project/folk-releases/issues/68))
-  - When a plugin's `run()` future returned `Err` or panicked, `shutdown()` previously propagated the error to the caller, which could abort the shutdown sequence and leave other plugins' `shutdown()` uncalled
-  - Fix: `Ok(Err(err))` and `Err(join_err)` (panic) cases now log with `error!()` and return `Ok(())`, honoring the documented contract that plugin shutdown errors do not abort the shutdown sequence
-  - Two regression tests added: `server_plugin_wrapper_run_error_does_not_propagate_shutdown` and `server_plugin_wrapper_run_panic_does_not_propagate_shutdown`
+- **folk-api v0.2.7** — docs: `PluginFactory::create` now carries an explicit doc comment stating that implementations must accept an empty JSON object `{}` and apply defaults ([#37](https://github.com/Folk-Project/folk-releases/issues/37))
+  - `folk-builder` passes `{}` for every plugin section absent from `folk.toml`; this contract was previously implicit and undocumented, making it easy for a new plugin to accidentally require a field without a default
+  - The doc comment also includes a copy-paste regression test snippet so new plugins can add the invariant in one line
 
-- **folk-core / folk-ext v0.3.6** — fix: server fails fast at startup if CWD is unavailable instead of silently using an empty path ([#66](https://github.com/Folk-Project/folk-releases/issues/66))
-  - `std::env::current_dir().unwrap_or_default()` in `start_server()`, `spawn_zts_worker()`, and `warmup()` would fall back to an empty `PathBuf` if CWD was unavailable (deleted directory, permission error, container misconfiguration)
-  - An empty base path caused all relative-path config values (worker script, Lua hook scripts) to silently resolve to unexpected locations — the server could appear to start but fail at the first request
-  - Fix: `current_dir()` now propagates the error with `.context("cannot determine current directory")?` in all three locations, failing fast with a clear message
-
-- **folk-api v0.2.5** — fix: `Arc<T: Executor>` blanket impl now forwards `execute()` ([#63](https://github.com/Folk-Project/folk-releases/issues/63)); duplicate health/metric/RPC registrations now emit `WARN` ([#64](https://github.com/Folk-Project/folk-releases/issues/64), [#65](https://github.com/Folk-Project/folk-releases/issues/65)); `watch::RecvError` on shutdown is now logged instead of silently swallowed ([#67](https://github.com/Folk-Project/folk-releases/issues/67)); `Counter::inc_by` documented as saturating ([#69](https://github.com/Folk-Project/folk-releases/issues/69))
-  - `Arc<T>` blanket `Executor` impl was missing a forward for `execute()` — any concrete type that overrides `execute` had its override silently bypassed when wrapped in `Arc`
-  - `HealthRegistryImpl::register()`, `MetricsRegistryImpl::counter_vec/gauge_vec/histogram_vec()`, and `InProcessRegistry::register_raw()` now emit `WARN` on duplicate name, making plugin name collisions visible at startup
-  - Shutdown signal handling in `ServerPlugin::run()` implementations now uses `if let Err(e) = sd.changed().await` instead of `.ok()`, so an unexpected sender drop is logged as an error rather than treated as a clean shutdown; same fix applied to folk-plugin-grpc, folk-plugin-jobs, folk-plugin-process
-  - `Counter::inc_by(u64)` trait method now documents saturating semantics — implementations must not wrap on overflow
-
-- **folk-core / folk-ext v0.3.5** — fix: duplicate registration warnings ([#64](https://github.com/Folk-Project/folk-releases/issues/64), [#65](https://github.com/Folk-Project/folk-releases/issues/65))
-  - See folk-api v0.2.5 above for details; concrete implementations live in folk-core
-
-- **folk-plugin-grpc v0.2.5**, **folk-plugin-jobs v0.3.3**, **folk-plugin-process v0.2.4** — fix: log `watch::RecvError` on shutdown instead of silently swallowing ([#67](https://github.com/Folk-Project/folk-releases/issues/67))
-
-- **folk-plugin-http v0.3.8** — perf: request headers no longer copied into a `HashMap` on the no-hooks fast path ([#52](https://github.com/Folk-Project/folk-releases/issues/52))
-  - `handle_inner` unconditionally allocated a `HashMap<String, String>` from all request headers and constructed a full `RequestContext` on every request, even when no Lua hooks were configured
-  - At 10K rps with 20 headers per request this wasted ~200K `String` allocations per second on the no-hooks fast path
-  - Fix: header extraction and `RequestContext` construction are now gated on `state.hook_engine.is_some()`. `req_ctx` is `Option<RequestContext>` — `None` when no hooks are configured, eliminating all per-request allocation overhead
-
-- **folk-plugin-http v0.3.7** — fix: `compression.min_size` values above 65535 are now rejected at startup with a clear error ([#59](https://github.com/Folk-Project/folk-releases/issues/59))
-  - `min_size` was stored as `usize` but silently cast to `u16` when passed to `tower_http::SizeAbove` — a value like `"100kb"` (102 400) wrapped around to ~2048 bytes, causing compression to fire on much smaller responses than intended, wasting CPU
-  - Fix: `PluginFactory::create` now validates `min_size ≤ 65535` and returns a descriptive startup error if the limit is exceeded; the silent `as u16` cast is replaced with a `u16::try_from` with a clear panic-invariant comment
-
-- **folk-core / folk-ext v0.3.4** — fix: malformed JSON from PHP in `do_send()` no longer silently becomes a null response ([#56](https://github.com/Folk-Project/folk-releases/issues/56))
-  - When PHP produced malformed JSON (encoding bug, truncated write, binary payload), `serde_json::from_slice(...).unwrap_or_default()` silently discarded the error and sent `null` to the HTTP handler
-  - The caller received an empty/zero response (typically HTTP 200 with empty body) with no error log — the root cause was invisible
-  - Fix: `from_slice` result is now propagated as `Err` through the reply channel; the HTTP handler surfaces it as a 502 and logs an `ERROR "PHP returned malformed JSON: ..."` entry
-
-- **folk-plugin-http v0.3.6** — fix: h2c server shutdown no longer hangs indefinitely on long-lived connections ([#62](https://github.com/Folk-Project/folk-releases/issues/62))
-  - The h2c (HTTP/2 cleartext) server drained in-flight connections by `await`-ing all tasks with no timeout or abort — a single streaming or slow client would prevent `SIGTERM` from ever completing
-  - New `[http] shutdown_timeout` config field (default: `"30s"`) controls the maximum drain wait before remaining h2c connections are forcibly aborted
-  - A `WARN` log line is emitted with the count of aborted connections when the timeout is reached
-  - HTTP/1.1 and TLS paths are unaffected; this field only applies to the `h2c = true` path
-
-- **folk-core / folk-ext v0.3.3** — fix: `folk_request_id()` no longer returns a stale UUID after `folk_worker_send()` ([#51](https://github.com/Folk-Project/folk-releases/issues/51))
-  - In the manual `do_recv` / `do_send` loop, `current_request_id` was left set after `folk_worker_send()` until the next `folk_worker_recv()` call
-  - PHP code running in that gap (object destructors, shutdown functions, Monolog processors) would see the completed request's UUID instead of an empty string
-  - Fix: `do_send` and `do_send_error` now clear `current_request_id = None` immediately after taking the reply channel, mirroring the existing behaviour in `run_dispatch_loop`
-
-- **folk-core / folk-ext v0.3.2** — fix: env var overrides with multi-word field names now work correctly ([#58](https://github.com/Folk-Project/folk-releases/issues/58))
-  - `FOLK_WORKERS_MAX_JOBS`, `FOLK_HTTP_WRITE_TIMEOUT` and similar multi-word env vars were silently ignored — `split("_")` mapped `FOLK_SERVER_SHUTDOWN_TIMEOUT` to `server.shutdown.timeout` (no such path) instead of `server.shutdown_timeout`
-  - Fix: the section separator is now **double underscore** (`__`): `FOLK_WORKERS__MAX_JOBS`, `FOLK_HTTP__WRITE_TIMEOUT`, `FOLK_SERVER__SHUTDOWN_TIMEOUT`
-  - **Breaking**: single-underscore env vars that previously happened to work for single-word fields (e.g. `FOLK_WORKERS_COUNT`) must be updated to `FOLK_WORKERS__COUNT`
-
-- **folk-plugin-http v0.3.5** — new: `required = true` field on `[[http.hooks]]` aborts server startup when a hook script fails to compile ([#53](https://github.com/Folk-Project/folk-releases/issues/53))
-  - A Lua hook that fails to compile at startup (path typo, syntax error) was silently dropped with a WARN log — requests passed through unprotected with no indication the security gate was missing
-  - New optional field `required = true` on any `[[http.hooks]]` entry causes `HookEngine::new` to return `Err` and abort the server if the script cannot be compiled
-  - Default is `false` for full backward compatibility — existing configs without `required` are unaffected
-  - Use `required = true` on auth checks, rate limiters, or any hook where a missing hook means unprotected requests
-
-- **folk-plugin-http v0.3.4** — fix: `request.error` hooks now respect the `mode` field ([#50](https://github.com/Folk-Project/folk-releases/issues/50))
-  - `run_request_error` was unconditionally spawning every matching hook via `tokio::spawn`, silently ignoring the configured `mode` and `on_error` fields
-  - A hook with `mode = "sync"` was run as fire-and-forget async; `on_error = "fail_closed"` had no effect
-  - Fix: `request.error` hooks are now partitioned the same way as `request.before` — sync hooks run inline (critical path) with full short-circuit and `fail_closed` support, async hooks fire-and-forget
-
-- **folk-plugin-http v0.3.3** — fix: poisoned `X-Forwarded-For` header no longer allows client IP spoofing ([#60](https://github.com/Folk-Project/folk-releases/issues/60))
-  - An unparseable entry in the XFF chain (e.g. `garbage, 10.0.0.1, 1.2.3.4`) was silently skipped, allowing a malicious client to bypass IP-based rate limiting or access control by injecting a fake trusted hop
-  - Fix: an unparseable XFF entry is now treated as an untrusted boundary — the walk stops and `peer_ip` is returned instead of continuing left through attacker-controlled values
-
-- **folk-api v0.2.4** — fix: `ServerPluginWrapper::boot()` now returns an error if called twice while the plugin is already running ([#54](https://github.com/Folk-Project/folk-releases/issues/54))
-  - Previously the old `JoinHandle` was silently overwritten without `.abort()`, leaving the original task running as a ghost and sharing resources with the replacement
-  - Fix: `boot()` checks if a handle is already present and returns `Err` immediately — double-boot is a programming error, not a recoverable condition
-
-- **folk-api v0.2.3** — fix: `ServerPluginWrapper::shutdown()` no longer deadlocks when a plugin task ignores `ctx.shutdown` ([#55](https://github.com/Folk-Project/folk-releases/issues/55))
-  - Previously, a plugin task stuck in I/O or waiting on a channel blocked `handle.await` forever, making SIGTERM unresponsive
-  - Fix: `handle.abort()` is called before `handle.await`; `JoinError::Cancelled` is treated as a clean exit
-  - The outer `[server] shutdown_timeout` (default 30 s) remains the overall deadline
-
-- **folk-core / folk-ext v0.3.1** — fix: dead worker slots no longer block requests ([#57](https://github.com/Folk-Project/folk-releases/issues/57))
-  - When a slot's supervisor task crashed (panic or unexpected exit), its inbox receiver was dropped; the round-robin dispatcher kept sending to that slot, failing 1/N of all requests with a misleading error
-  - Fix: on `SendError` the slot is marked dead, the request value is recovered from the error, and the next live slot is tried immediately
-  - If all slots are dead, the caller now receives an explicit `"all worker slots dead"` error instead of a silently dropped reply channel
-
-- **folk-plugin-http v0.3.2** — complete fix for binary response body corruption with Lua hooks ([#49](https://github.com/Folk-Project/folk-releases/issues/49))
-  - Binary HTTP responses (images, PDFs, gzip, protobuf, `application/octet-stream`) were silently corrupted whenever any `[[http.hooks]]` entry was present in `folk.toml`
-  - Root cause: `ResponseContext.body` was `Option<String>` and populated via `String::from_utf8_lossy`, replacing invalid UTF-8 bytes with U+FFFD — even inside `response.after` hooks
-  - Fix: `ResponseContext.body` is now `Option<Vec<u8>>`; bytes are passed to Lua as a Lua byte string (`lua.create_string`) and read back via `mlua::String::as_bytes()` — no UTF-8 conversion at any point
-  - Binary bodies now pass through all hook events byte-for-byte regardless of content type
+- **folk-plugin-http v0.3.9**, **folk-plugin-jobs v0.3.4**, **folk-plugin-grpc v0.2.6**, **folk-plugin-metrics v0.2.3** — test: add `factory_accepts_empty_config` regression tests ([#37](https://github.com/Folk-Project/folk-releases/issues/37))
+  - Each plugin now has a `tests/` regression test that calls `folk_plugin_factory().create(json!({}))` and asserts `Ok`, guarding against the class of bug that caused folk-plugin-process to crash on an absent `[process]` section (#36)
 
 
 ### Versions
 
 | Package | Version | Type |
 |---------|---------|------|
-| folk-api | 0.2.6 | crates.io |
+| folk-api | 0.2.7 | crates.io |
 | folk-core | 0.3.6 | crates.io |
 | folk-ext | 0.3.6 | crates.io |
-| folk-plugin-http | 0.3.8 | crates.io |
-| folk-plugin-grpc | 0.2.5 | crates.io |
-| folk-plugin-jobs | 0.3.3 | crates.io |
+| folk-plugin-http | 0.3.9 | crates.io |
+| folk-plugin-grpc | 0.2.6 | crates.io |
+| folk-plugin-jobs | 0.3.4 | crates.io |
+| folk-plugin-metrics | 0.2.3 | crates.io |
 | folk-plugin-process | 0.2.4 | crates.io |
