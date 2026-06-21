@@ -1,5 +1,11 @@
 ### What's new
 
+- **folk-plugin-http v0.3.3** — fix: poisoned `X-Forwarded-For` header no longer allows client IP spoofing ([#60](https://github.com/Folk-Project/folk-releases/issues/60))
+  - An unparseable entry in the XFF chain (e.g. `garbage, 10.0.0.1, 1.2.3.4`) was silently skipped, allowing a malicious client to bypass IP-based rate limiting or access control by injecting a fake trusted hop
+  - Fix: an unparseable XFF entry is now treated as an untrusted boundary — the walk stops and `peer_ip` is returned instead of continuing left through attacker-controlled values
+
+### What's new (previous)
+
 - **folk-api v0.2.3** — fix: `ServerPluginWrapper::shutdown()` no longer deadlocks when a plugin task ignores `ctx.shutdown` ([#55](https://github.com/Folk-Project/folk-releases/issues/55))
   - Previously, a plugin task stuck in I/O or waiting on a channel blocked `handle.await` forever, making SIGTERM unresponsive
   - Fix: `handle.abort()` is called before `handle.await`; `JoinError::Cancelled` is treated as a clean exit
@@ -24,4 +30,4 @@
 | folk-api | 0.2.3 | crates.io |
 | folk-core | 0.3.1 | crates.io |
 | folk-ext | 0.3.1 | crates.io |
-| folk-plugin-http | 0.3.2 | crates.io |
+| folk-plugin-http | 0.3.3 | crates.io |
