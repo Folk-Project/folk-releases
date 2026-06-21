@@ -1,5 +1,10 @@
 ### What's new
 
+- **folk-api v0.2.3** — fix: `ServerPluginWrapper::shutdown()` no longer deadlocks when a plugin task ignores `ctx.shutdown` ([#55](https://github.com/Folk-Project/folk-releases/issues/55))
+  - Previously, a plugin task stuck in I/O or waiting on a channel blocked `handle.await` forever, making SIGTERM unresponsive
+  - Fix: `handle.abort()` is called before `handle.await`; `JoinError::Cancelled` is treated as a clean exit
+  - The outer `[server] shutdown_timeout` (default 30 s) remains the overall deadline
+
 - **folk-core / folk-ext v0.3.1** — fix: dead worker slots no longer block requests ([#57](https://github.com/Folk-Project/folk-releases/issues/57))
   - When a slot's supervisor task crashed (panic or unexpected exit), its inbox receiver was dropped; the round-robin dispatcher kept sending to that slot, failing 1/N of all requests with a misleading error
   - Fix: on `SendError` the slot is marked dead, the request value is recovered from the error, and the next live slot is tried immediately
@@ -16,6 +21,7 @@
 
 | Package | Version | Type |
 |---------|---------|------|
+| folk-api | 0.2.3 | crates.io |
 | folk-core | 0.3.1 | crates.io |
 | folk-ext | 0.3.1 | crates.io |
 | folk-plugin-http | 0.3.2 | crates.io |
