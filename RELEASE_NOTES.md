@@ -91,9 +91,9 @@
 
 | Package | Version | Type |
 |---------|---------|------|
-| folk-api | 0.2.5 | crates.io |
-| folk-core | 0.3.5 | crates.io |
-| folk-ext | 0.3.5 | crates.io |
+| folk-api | 0.2.6 | crates.io |
+| folk-core | 0.3.6 | crates.io |
+| folk-ext | 0.3.6 | crates.io |
 | folk-plugin-http | 0.3.8 | crates.io |
 | folk-plugin-grpc | 0.2.5 | crates.io |
 | folk-plugin-jobs | 0.3.3 | crates.io |
