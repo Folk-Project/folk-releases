@@ -1,5 +1,10 @@
 ### What's new
 
+- **folk-core / folk-ext v0.3.4** — fix: malformed JSON from PHP in `do_send()` no longer silently becomes a null response ([#56](https://github.com/Folk-Project/folk-releases/issues/56))
+  - When PHP produced malformed JSON (encoding bug, truncated write, binary payload), `serde_json::from_slice(...).unwrap_or_default()` silently discarded the error and sent `null` to the HTTP handler
+  - The caller received an empty/zero response (typically HTTP 200 with empty body) with no error log — the root cause was invisible
+  - Fix: `from_slice` result is now propagated as `Err` through the reply channel; the HTTP handler surfaces it as a 502 and logs an `ERROR "PHP returned malformed JSON: ..."` entry
+
 - **folk-plugin-http v0.3.6** — fix: h2c server shutdown no longer hangs indefinitely on long-lived connections ([#62](https://github.com/Folk-Project/folk-releases/issues/62))
   - The h2c (HTTP/2 cleartext) server drained in-flight connections by `await`-ing all tasks with no timeout or abort — a single streaming or slow client would prevent `SIGTERM` from ever completing
   - New `[http] shutdown_timeout` config field (default: `"30s"`) controls the maximum drain wait before remaining h2c connections are forcibly aborted
@@ -57,6 +62,6 @@
 | Package | Version | Type |
 |---------|---------|------|
 | folk-api | 0.2.4 | crates.io |
-| folk-core | 0.3.3 | crates.io |
-| folk-ext | 0.3.3 | crates.io |
+| folk-core | 0.3.4 | crates.io |
+| folk-ext | 0.3.4 | crates.io |
 | folk-plugin-http | 0.3.6 | crates.io |
