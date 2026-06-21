@@ -1,5 +1,15 @@
 ### What's new
 
+- **folk-api v0.2.6** — fix: `ServerPluginWrapper::shutdown()` now logs run-loop errors instead of propagating them ([#68](https://github.com/Folk-Project/folk-releases/issues/68))
+  - When a plugin's `run()` future returned `Err` or panicked, `shutdown()` previously propagated the error to the caller, which could abort the shutdown sequence and leave other plugins' `shutdown()` uncalled
+  - Fix: `Ok(Err(err))` and `Err(join_err)` (panic) cases now log with `error!()` and return `Ok(())`, honoring the documented contract that plugin shutdown errors do not abort the shutdown sequence
+  - Two regression tests added: `server_plugin_wrapper_run_error_does_not_propagate_shutdown` and `server_plugin_wrapper_run_panic_does_not_propagate_shutdown`
+
+- **folk-core / folk-ext v0.3.6** — fix: server fails fast at startup if CWD is unavailable instead of silently using an empty path ([#66](https://github.com/Folk-Project/folk-releases/issues/66))
+  - `std::env::current_dir().unwrap_or_default()` in `start_server()`, `spawn_zts_worker()`, and `warmup()` would fall back to an empty `PathBuf` if CWD was unavailable (deleted directory, permission error, container misconfiguration)
+  - An empty base path caused all relative-path config values (worker script, Lua hook scripts) to silently resolve to unexpected locations — the server could appear to start but fail at the first request
+  - Fix: `current_dir()` now propagates the error with `.context("cannot determine current directory")?` in all three locations, failing fast with a clear message
+
 - **folk-api v0.2.5** — fix: `Arc<T: Executor>` blanket impl now forwards `execute()` ([#63](https://github.com/Folk-Project/folk-releases/issues/63)); duplicate health/metric/RPC registrations now emit `WARN` ([#64](https://github.com/Folk-Project/folk-releases/issues/64), [#65](https://github.com/Folk-Project/folk-releases/issues/65)); `watch::RecvError` on shutdown is now logged instead of silently swallowed ([#67](https://github.com/Folk-Project/folk-releases/issues/67)); `Counter::inc_by` documented as saturating ([#69](https://github.com/Folk-Project/folk-releases/issues/69))
   - `Arc<T>` blanket `Executor` impl was missing a forward for `execute()` — any concrete type that overrides `execute` had its override silently bypassed when wrapped in `Arc`
   - `HealthRegistryImpl::register()`, `MetricsRegistryImpl::counter_vec/gauge_vec/histogram_vec()`, and `InProcessRegistry::register_raw()` now emit `WARN` on duplicate name, making plugin name collisions visible at startup
