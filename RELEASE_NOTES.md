@@ -5,6 +5,11 @@
   - Fix: the section separator is now **double underscore** (`__`): `FOLK_WORKERS__MAX_JOBS`, `FOLK_HTTP__WRITE_TIMEOUT`, `FOLK_SERVER__SHUTDOWN_TIMEOUT`
   - **Breaking**: single-underscore env vars that previously happened to work for single-word fields (e.g. `FOLK_WORKERS_COUNT`) must be updated to `FOLK_WORKERS__COUNT`
 
+- **folk-plugin-http v0.3.4** — fix: `request.error` hooks now respect the `mode` field ([#50](https://github.com/Folk-Project/folk-releases/issues/50))
+  - `run_request_error` was unconditionally spawning every matching hook via `tokio::spawn`, silently ignoring the configured `mode` and `on_error` fields
+  - A hook with `mode = "sync"` was run as fire-and-forget async; `on_error = "fail_closed"` had no effect
+  - Fix: `request.error` hooks are now partitioned the same way as `request.before` — sync hooks run inline (critical path) with full short-circuit and `fail_closed` support, async hooks fire-and-forget
+
 - **folk-plugin-http v0.3.3** — fix: poisoned `X-Forwarded-For` header no longer allows client IP spoofing ([#60](https://github.com/Folk-Project/folk-releases/issues/60))
   - An unparseable entry in the XFF chain (e.g. `garbage, 10.0.0.1, 1.2.3.4`) was silently skipped, allowing a malicious client to bypass IP-based rate limiting or access control by injecting a fake trusted hop
   - Fix: an unparseable XFF entry is now treated as an untrusted boundary — the walk stops and `peer_ip` is returned instead of continuing left through attacker-controlled values
@@ -33,4 +38,4 @@
 | folk-api | 0.2.3 | crates.io |
 | folk-core | 0.3.2 | crates.io |
 | folk-ext | 0.3.2 | crates.io |
-| folk-plugin-http | 0.3.3 | crates.io |
+| folk-plugin-http | 0.3.4 | crates.io |
