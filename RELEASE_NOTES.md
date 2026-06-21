@@ -1,5 +1,11 @@
 ### What's new
 
+- **folk-plugin-http v0.3.6** — fix: h2c server shutdown no longer hangs indefinitely on long-lived connections ([#62](https://github.com/Folk-Project/folk-releases/issues/62))
+  - The h2c (HTTP/2 cleartext) server drained in-flight connections by `await`-ing all tasks with no timeout or abort — a single streaming or slow client would prevent `SIGTERM` from ever completing
+  - New `[http] shutdown_timeout` config field (default: `"30s"`) controls the maximum drain wait before remaining h2c connections are forcibly aborted
+  - A `WARN` log line is emitted with the count of aborted connections when the timeout is reached
+  - HTTP/1.1 and TLS paths are unaffected; this field only applies to the `h2c = true` path
+
 - **folk-core / folk-ext v0.3.2** — fix: env var overrides with multi-word field names now work correctly ([#58](https://github.com/Folk-Project/folk-releases/issues/58))
   - `FOLK_WORKERS_MAX_JOBS`, `FOLK_HTTP_WRITE_TIMEOUT` and similar multi-word env vars were silently ignored — `split("_")` mapped `FOLK_SERVER_SHUTDOWN_TIMEOUT` to `server.shutdown.timeout` (no such path) instead of `server.shutdown_timeout`
   - Fix: the section separator is now **double underscore** (`__`): `FOLK_WORKERS__MAX_JOBS`, `FOLK_HTTP__WRITE_TIMEOUT`, `FOLK_SERVER__SHUTDOWN_TIMEOUT`
@@ -48,4 +54,4 @@
 | folk-api | 0.2.4 | crates.io |
 | folk-core | 0.3.2 | crates.io |
 | folk-ext | 0.3.2 | crates.io |
-| folk-plugin-http | 0.3.5 | crates.io |
+| folk-plugin-http | 0.3.6 | crates.io |
