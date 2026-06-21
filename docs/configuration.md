@@ -2,13 +2,17 @@
 
 Folk is configured via `folk.toml` in your project root. All settings have sensible defaults — you only need to specify what you want to change.
 
-Environment variables with the `FOLK_` prefix override file settings:
+Environment variables with the `FOLK_` prefix override file settings. Use **double underscore** (`__`) to separate the section name from the field name:
 
 ```bash
-FOLK_WORKERS_COUNT=8
-FOLK_HTTP_LISTEN=0.0.0.0:9000
-FOLK_LOG_FILTER=debug
+FOLK_WORKERS__COUNT=8
+FOLK_HTTP__LISTEN=0.0.0.0:9000
+FOLK_LOG__FILTER=debug
+FOLK_SERVER__SHUTDOWN_TIMEOUT=60s
+FOLK_WORKERS__MAX_JOBS=500
 ```
+
+The pattern is `FOLK_{SECTION}__{FIELD}` — single underscore after `FOLK`, double underscore between section and field. This allows field names that contain underscores (e.g. `max_jobs`, `shutdown_timeout`) to work correctly.
 
 ## Server
 
