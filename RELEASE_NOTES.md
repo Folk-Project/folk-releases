@@ -1,5 +1,16 @@
 ### What's new
 
+- **folk-api v0.2.5** — fix: `Arc<T: Executor>` blanket impl now forwards `execute()` ([#63](https://github.com/Folk-Project/folk-releases/issues/63)); duplicate health/metric/RPC registrations now emit `WARN` ([#64](https://github.com/Folk-Project/folk-releases/issues/64), [#65](https://github.com/Folk-Project/folk-releases/issues/65)); `watch::RecvError` on shutdown is now logged instead of silently swallowed ([#67](https://github.com/Folk-Project/folk-releases/issues/67)); `Counter::inc_by` documented as saturating ([#69](https://github.com/Folk-Project/folk-releases/issues/69))
+  - `Arc<T>` blanket `Executor` impl was missing a forward for `execute()` — any concrete type that overrides `execute` had its override silently bypassed when wrapped in `Arc`
+  - `HealthRegistryImpl::register()`, `MetricsRegistryImpl::counter_vec/gauge_vec/histogram_vec()`, and `InProcessRegistry::register_raw()` now emit `WARN` on duplicate name, making plugin name collisions visible at startup
+  - Shutdown signal handling in `ServerPlugin::run()` implementations now uses `if let Err(e) = sd.changed().await` instead of `.ok()`, so an unexpected sender drop is logged as an error rather than treated as a clean shutdown; same fix applied to folk-plugin-grpc, folk-plugin-jobs, folk-plugin-process
+  - `Counter::inc_by(u64)` trait method now documents saturating semantics — implementations must not wrap on overflow
+
+- **folk-core / folk-ext v0.3.5** — fix: duplicate registration warnings ([#64](https://github.com/Folk-Project/folk-releases/issues/64), [#65](https://github.com/Folk-Project/folk-releases/issues/65))
+  - See folk-api v0.2.5 above for details; concrete implementations live in folk-core
+
+- **folk-plugin-grpc v0.2.5**, **folk-plugin-jobs v0.3.3**, **folk-plugin-process v0.2.4** — fix: log `watch::RecvError` on shutdown instead of silently swallowing ([#67](https://github.com/Folk-Project/folk-releases/issues/67))
+
 - **folk-plugin-http v0.3.8** — perf: request headers no longer copied into a `HashMap` on the no-hooks fast path ([#52](https://github.com/Folk-Project/folk-releases/issues/52))
   - `handle_inner` unconditionally allocated a `HashMap<String, String>` from all request headers and constructed a full `RequestContext` on every request, even when no Lua hooks were configured
   - At 10K rps with 20 headers per request this wasted ~200K `String` allocations per second on the no-hooks fast path
@@ -70,7 +81,10 @@
 
 | Package | Version | Type |
 |---------|---------|------|
-| folk-api | 0.2.4 | crates.io |
-| folk-core | 0.3.4 | crates.io |
-| folk-ext | 0.3.4 | crates.io |
-| folk-plugin-http | 0.3.7 | crates.io |
+| folk-api | 0.2.5 | crates.io |
+| folk-core | 0.3.5 | crates.io |
+| folk-ext | 0.3.5 | crates.io |
+| folk-plugin-http | 0.3.8 | crates.io |
+| folk-plugin-grpc | 0.2.5 | crates.io |
+| folk-plugin-jobs | 0.3.3 | crates.io |
+| folk-plugin-process | 0.2.4 | crates.io |
