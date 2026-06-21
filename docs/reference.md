@@ -10,8 +10,9 @@ Complete `folk.toml` with all available options and their defaults.
 # Place as folk.toml in your project root.
 # All values below are defaults unless noted otherwise.
 #
-# Environment variable overrides: FOLK_{SECTION}_{FIELD}
-# Example: FOLK_WORKERS_COUNT=8, FOLK_HTTP_LISTEN=0.0.0.0:9000
+# Environment variable overrides: FOLK_{SECTION}__{FIELD}  (double underscore)
+# Example: FOLK_WORKERS__COUNT=8, FOLK_HTTP__LISTEN=0.0.0.0:9000
+# Note: double underscore separates the section from the field name.
 #
 # Duration format: "30s", "5m", "1h", "1d"
 # Size format: "10mb", "512kb", "4096" (bytes)

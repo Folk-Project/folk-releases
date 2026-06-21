@@ -1,10 +1,13 @@
 ### What's new
 
+- **folk-core / folk-ext v0.3.2** — fix: env var overrides with multi-word field names now work correctly ([#58](https://github.com/Folk-Project/folk-releases/issues/58))
+  - `FOLK_WORKERS_MAX_JOBS`, `FOLK_HTTP_WRITE_TIMEOUT` and similar multi-word env vars were silently ignored — `split("_")` mapped `FOLK_SERVER_SHUTDOWN_TIMEOUT` to `server.shutdown.timeout` (no such path) instead of `server.shutdown_timeout`
+  - Fix: the section separator is now **double underscore** (`__`): `FOLK_WORKERS__MAX_JOBS`, `FOLK_HTTP__WRITE_TIMEOUT`, `FOLK_SERVER__SHUTDOWN_TIMEOUT`
+  - **Breaking**: single-underscore env vars that previously happened to work for single-word fields (e.g. `FOLK_WORKERS_COUNT`) must be updated to `FOLK_WORKERS__COUNT`
+
 - **folk-plugin-http v0.3.3** — fix: poisoned `X-Forwarded-For` header no longer allows client IP spoofing ([#60](https://github.com/Folk-Project/folk-releases/issues/60))
   - An unparseable entry in the XFF chain (e.g. `garbage, 10.0.0.1, 1.2.3.4`) was silently skipped, allowing a malicious client to bypass IP-based rate limiting or access control by injecting a fake trusted hop
   - Fix: an unparseable XFF entry is now treated as an untrusted boundary — the walk stops and `peer_ip` is returned instead of continuing left through attacker-controlled values
-
-### What's new (previous)
 
 - **folk-api v0.2.3** — fix: `ServerPluginWrapper::shutdown()` no longer deadlocks when a plugin task ignores `ctx.shutdown` ([#55](https://github.com/Folk-Project/folk-releases/issues/55))
   - Previously, a plugin task stuck in I/O or waiting on a channel blocked `handle.await` forever, making SIGTERM unresponsive
@@ -28,6 +31,6 @@
 | Package | Version | Type |
 |---------|---------|------|
 | folk-api | 0.2.3 | crates.io |
-| folk-core | 0.3.1 | crates.io |
-| folk-ext | 0.3.1 | crates.io |
+| folk-core | 0.3.2 | crates.io |
+| folk-ext | 0.3.2 | crates.io |
 | folk-plugin-http | 0.3.3 | crates.io |
