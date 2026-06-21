@@ -1,5 +1,9 @@
 ### What's new
 
+- **folk-plugin-http v0.3.7** — fix: `compression.min_size` values above 65535 are now rejected at startup with a clear error ([#59](https://github.com/Folk-Project/folk-releases/issues/59))
+  - `min_size` was stored as `usize` but silently cast to `u16` when passed to `tower_http::SizeAbove` — a value like `"100kb"` (102 400) wrapped around to ~2048 bytes, causing compression to fire on much smaller responses than intended, wasting CPU
+  - Fix: `PluginFactory::create` now validates `min_size ≤ 65535` and returns a descriptive startup error if the limit is exceeded; the silent `as u16` cast is replaced with a `u16::try_from` with a clear panic-invariant comment
+
 - **folk-core / folk-ext v0.3.4** — fix: malformed JSON from PHP in `do_send()` no longer silently becomes a null response ([#56](https://github.com/Folk-Project/folk-releases/issues/56))
   - When PHP produced malformed JSON (encoding bug, truncated write, binary payload), `serde_json::from_slice(...).unwrap_or_default()` silently discarded the error and sent `null` to the HTTP handler
   - The caller received an empty/zero response (typically HTTP 200 with empty body) with no error log — the root cause was invisible
@@ -64,4 +68,4 @@
 | folk-api | 0.2.4 | crates.io |
 | folk-core | 0.3.4 | crates.io |
 | folk-ext | 0.3.4 | crates.io |
-| folk-plugin-http | 0.3.6 | crates.io |
+| folk-plugin-http | 0.3.7 | crates.io |
