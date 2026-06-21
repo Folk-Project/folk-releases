@@ -6,6 +6,11 @@
   - A `WARN` log line is emitted with the count of aborted connections when the timeout is reached
   - HTTP/1.1 and TLS paths are unaffected; this field only applies to the `h2c = true` path
 
+- **folk-core / folk-ext v0.3.3** — fix: `folk_request_id()` no longer returns a stale UUID after `folk_worker_send()` ([#51](https://github.com/Folk-Project/folk-releases/issues/51))
+  - In the manual `do_recv` / `do_send` loop, `current_request_id` was left set after `folk_worker_send()` until the next `folk_worker_recv()` call
+  - PHP code running in that gap (object destructors, shutdown functions, Monolog processors) would see the completed request's UUID instead of an empty string
+  - Fix: `do_send` and `do_send_error` now clear `current_request_id = None` immediately after taking the reply channel, mirroring the existing behaviour in `run_dispatch_loop`
+
 - **folk-core / folk-ext v0.3.2** — fix: env var overrides with multi-word field names now work correctly ([#58](https://github.com/Folk-Project/folk-releases/issues/58))
   - `FOLK_WORKERS_MAX_JOBS`, `FOLK_HTTP_WRITE_TIMEOUT` and similar multi-word env vars were silently ignored — `split("_")` mapped `FOLK_SERVER_SHUTDOWN_TIMEOUT` to `server.shutdown.timeout` (no such path) instead of `server.shutdown_timeout`
   - Fix: the section separator is now **double underscore** (`__`): `FOLK_WORKERS__MAX_JOBS`, `FOLK_HTTP__WRITE_TIMEOUT`, `FOLK_SERVER__SHUTDOWN_TIMEOUT`
@@ -52,6 +57,6 @@
 | Package | Version | Type |
 |---------|---------|------|
 | folk-api | 0.2.4 | crates.io |
-| folk-core | 0.3.2 | crates.io |
-| folk-ext | 0.3.2 | crates.io |
+| folk-core | 0.3.3 | crates.io |
+| folk-ext | 0.3.3 | crates.io |
 | folk-plugin-http | 0.3.6 | crates.io |
