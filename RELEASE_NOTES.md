@@ -5,6 +5,12 @@
   - Fix: the section separator is now **double underscore** (`__`): `FOLK_WORKERS__MAX_JOBS`, `FOLK_HTTP__WRITE_TIMEOUT`, `FOLK_SERVER__SHUTDOWN_TIMEOUT`
   - **Breaking**: single-underscore env vars that previously happened to work for single-word fields (e.g. `FOLK_WORKERS_COUNT`) must be updated to `FOLK_WORKERS__COUNT`
 
+- **folk-plugin-http v0.3.5** — new: `required = true` field on `[[http.hooks]]` aborts server startup when a hook script fails to compile ([#53](https://github.com/Folk-Project/folk-releases/issues/53))
+  - A Lua hook that fails to compile at startup (path typo, syntax error) was silently dropped with a WARN log — requests passed through unprotected with no indication the security gate was missing
+  - New optional field `required = true` on any `[[http.hooks]]` entry causes `HookEngine::new` to return `Err` and abort the server if the script cannot be compiled
+  - Default is `false` for full backward compatibility — existing configs without `required` are unaffected
+  - Use `required = true` on auth checks, rate limiters, or any hook where a missing hook means unprotected requests
+
 - **folk-plugin-http v0.3.4** — fix: `request.error` hooks now respect the `mode` field ([#50](https://github.com/Folk-Project/folk-releases/issues/50))
   - `run_request_error` was unconditionally spawning every matching hook via `tokio::spawn`, silently ignoring the configured `mode` and `on_error` fields
   - A hook with `mode = "sync"` was run as fire-and-forget async; `on_error = "fail_closed"` had no effect
@@ -42,4 +48,4 @@
 | folk-api | 0.2.4 | crates.io |
 | folk-core | 0.3.2 | crates.io |
 | folk-ext | 0.3.2 | crates.io |
-| folk-plugin-http | 0.3.4 | crates.io |
+| folk-plugin-http | 0.3.5 | crates.io |
