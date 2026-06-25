@@ -47,6 +47,7 @@ nav:
       - gRPC: plugins/grpc.md
       - Metrics: plugins/metrics.md
       - Process: plugins/process.md
+  - PHP API: php-api.md
   - Benchmarks: benchmarks.md
   - Contributing: contributing.md
 
