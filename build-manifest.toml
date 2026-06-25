@@ -6,13 +6,13 @@
 # CI reads this file, generates folk.build.toml, and runs folk-builder.
 
 [release]
-version = "0.1.0"
+version = "0.1.12"
 
 [builder]
 version = "0.2.*"
 
 [plugins]
-folk-plugin-http = "0.3.*"
+folk-plugin-http = "0.4.*"
 folk-plugin-jobs = "0.3.*"
 folk-plugin-grpc = "0.2.*"
 folk-plugin-metrics = "0.2.*"
