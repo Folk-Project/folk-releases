@@ -48,8 +48,12 @@ warmup = true                          # Compile Composer classmap into opcache 
 # current request completes; each restarted worker re-bootstraps and re-reads
 # the changed code. Keep opcache.validate_timestamps = 1 in dev (the default)
 # so OPcache picks up edits; do not pair enable_cli = 1 with validate_timestamps = 0.
+# Enabling watch also turns on dev error reporting: fatal worker errors expose
+# the exception class + stack trace to the client (HTTP 500 body / gRPC INTERNAL
+# message). In production leave it off — the client sees a generic message and
+# the full detail is logged server-side. (Surfaced to workers as FOLK_DEV_MODE.)
 [dev]
-watch = false                          # Enable file watcher + hot reload
+watch = false                          # Enable file watcher + hot reload (+ dev error detail)
 watch_paths = ["app", "src", "routes", "config"]  # Directories watched recursively
 watch_extensions = ["php"]             # Extensions that trigger a reload
 debounce = "300ms"                     # Collapse a burst of file events into one reload

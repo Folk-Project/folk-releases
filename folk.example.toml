@@ -63,7 +63,10 @@ warmup = true
 # recyclable). Keep opcache.validate_timestamps = 1 in dev so OPcache sees edits.
 [dev]
 
-# Enable the file watcher + hot reload.
+# Enable the file watcher + hot reload. Also turns on dev error reporting:
+# fatal worker errors expose the exception class + stack trace to the client
+# (HTTP 500 body / gRPC INTERNAL message). In production keep this off so the
+# client only sees a generic message (the detail is always logged server-side).
 watch = false
 
 # Directories watched recursively (relative to the project root).

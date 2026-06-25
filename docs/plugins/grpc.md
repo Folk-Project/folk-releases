@@ -108,6 +108,45 @@ $loop->onGrpc('greeter.Greeter/SayHello', function (array $request): array {
 $loop->run();
 ```
 
+## Status codes
+
+Return a successful response as usual. To report a **business outcome** (the
+standard server-side gRPC idiom), call `$context->setStatus($code, $message)`
+and return `null` — the plugin maps it to the gRPC status code:
+
+```php
+use Folk\Sdk\Grpc\Context;
+
+public function GetUser(Context $context, GetUserRequest $req): ?UserReply
+{
+    $user = $this->repo->find($req->getId());
+    if ($user === null) {
+        $context->setStatus(5, 'user not found');   // NOT_FOUND
+        return null;
+    }
+    return (new UserReply())->setName($user->name);
+}
+```
+
+`$code` is a canonical [`google.rpc.Code`](https://grpc.io/docs/guides/status-codes/):
+
+| code | name |
+|------|------|
+| 3 | INVALID_ARGUMENT |
+| 5 | NOT_FOUND |
+| 6 | ALREADY_EXISTS |
+| 7 | PERMISSION_DENIED |
+| 8 | RESOURCE_EXHAUSTED |
+| 12 | UNIMPLEMENTED |
+| 13 | INTERNAL |
+| 14 | UNAVAILABLE |
+| 16 | UNAUTHENTICATED |
+
+An **uncaught exception** in a handler is a fatal error: the call fails with
+`INTERNAL (13)`. The exception class and stack trace are included in the status
+message only in dev mode (`[dev] watch`); in production the client gets a
+generic message and the full detail is logged server-side.
+
 ## Testing
 
 ```bash

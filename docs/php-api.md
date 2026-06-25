@@ -235,3 +235,47 @@ Log::info('handling request', ['request_id' => $id]);
 ```
 
 Adapters (Laravel, Symfony, Spiral, Yii3) automatically inject the request ID into application logs via a Monolog processor — no manual wiring needed.
+
+---
+
+## Error handling
+
+Folk distinguishes a **business outcome** (an expected result the application
+decided on) from a **fatal error** (something broke). There are no
+Folk-specific exception classes — you use native PHP exceptions and your
+framework's error handling as-is.
+
+### Business outcomes
+
+- **HTTP** — your framework already renders them. `abort(404)`,
+  `NotFoundHttpException`, `ValidationException`, etc. produce a normal response
+  with the right status code; Folk passes it through unchanged. No Folk code
+  required.
+- **gRPC** — report the outcome via the context and return `null`:
+
+  ```php
+  use Folk\Sdk\Grpc\Context;
+
+  public function GetUser(Context $context, GetUserRequest $req): ?UserReply
+  {
+      if (!$found) {
+          $context->setStatus(5, 'user not found');   // canonical gRPC NOT_FOUND
+          return null;
+      }
+      return $reply;
+  }
+  ```
+
+  See the [gRPC plugin docs](plugins/grpc.md#status-codes) for the full code table.
+
+### Fatal errors
+
+An uncaught exception, a dispatch failure, or a malformed response is a fatal:
+
+- **HTTP** → `500` (a worker that produces no response at all → `502`).
+- **gRPC** → `INTERNAL (13)`.
+
+The exception class and stack trace are exposed to the client **only in dev
+mode** — enable `[dev] watch` in `folk.toml`, which Folk surfaces to workers via
+the `FOLK_DEV_MODE` environment variable. In production the client receives a
+generic message and the full detail is written to the server log only.
