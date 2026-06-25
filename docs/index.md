@@ -14,6 +14,7 @@ Folk replaces nginx + php-fpm with a single binary that handles HTTP, gRPC, back
 - **Prometheus metrics** — `/metrics` and `/health` endpoints out of the box
 - **Process manager** — Supervised background processes with restart policies
 - **ZTS multi-worker** — Multiple PHP worker threads in a single process (no fork)
+- **Streaming responses** — True chunked HTTP via `Folk::writeHead/write/end`, SSE support
 - **Plugin architecture** — Only include what you need
 
 ## Quick Start
@@ -43,7 +44,7 @@ count = 4
 listen = "0.0.0.0:8080"
 ```
 
-See [Configuration](configuration.md) for all available options.
+See [Configuration](configuration.md) for all available options and [PHP API](php-api.md) for available native functions.
 
 ### 4. Run
 
