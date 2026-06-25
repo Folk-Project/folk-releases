@@ -103,6 +103,11 @@ read_timeout = "10s"
 # Maximum time to write the response.
 write_timeout = "30s"
 
+# Stream the request body to PHP (read via Folk::read / Folk::readAll) instead of
+# buffering it into $payload['body']. When true, max_request_size is not enforced.
+# Opt-in; default false. See docs/php-api.md "Request body streaming".
+# stream_request_body = false
+
 # -----------------------------------------------------------------------------
 # Jobs Plugin
 # -----------------------------------------------------------------------------

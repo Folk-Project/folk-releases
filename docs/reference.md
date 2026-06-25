@@ -79,7 +79,8 @@ format = "text"                        # Output format: "text", "json", "pretty"
 listen = "0.0.0.0:8080"               # Listening address
 read_timeout = "10s"                   # Max time to read request body
 write_timeout = "30s"                  # Max time to write response (504 on timeout)
-max_request_size = "10mb"              # Max request body ("10mb", "512kb", or bytes)
+max_request_size = "10mb"              # Max request body ("10mb", "512kb", or bytes). Not enforced when stream_request_body = true
+stream_request_body = false            # Stream body to PHP (Folk::read) instead of buffering into $payload['body']. See php-api.md
 access_log = false                     # Log every request (method, URI, status, duration)
 trusted_proxies = []                   # CIDR subnets for X-Forwarded-For extraction
 h2c = false                            # HTTP/2 cleartext (without TLS)

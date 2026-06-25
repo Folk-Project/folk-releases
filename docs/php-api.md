@@ -45,6 +45,26 @@ Finish the streaming response. No more writes are possible after this. Return fr
 \Folk\Sdk\Folk::end();
 ```
 
+### `Folk::read(int $length = 8192): string`
+
+Read up to `$length` bytes of the **request** body, blocking until data is available. Returns `""` at end-of-body. Only yields data when the HTTP plugin runs with `stream_request_body = true`; otherwise the body is in `$payload['body']` and this returns `""`. A single call may return fewer than `$length` bytes — loop until `""`.
+
+```php
+$handle = fopen('/var/uploads/file.bin', 'wb');
+while (($chunk = \Folk\Sdk\Folk::read(65536)) !== '') {
+    fwrite($handle, $chunk);
+}
+fclose($handle);
+```
+
+### `Folk::readAll(): string`
+
+Read the entire request body, blocking until end-of-body. Returns `""` when there is no streaming body. Convenient when you don't need incremental processing.
+
+```php
+$body = \Folk\Sdk\Folk::readAll();
+```
+
 ---
 
 ## Native functions
@@ -107,6 +127,22 @@ Low-level version of `Folk::end()`. Finish the streaming response.
 
 ```php
 folk_write_end();
+```
+
+### `folk_read(int $length = 8192): string`
+
+Low-level version of `Folk::read()`. Read up to `$length` bytes of the request body, blocking until data is available; `""` at end-of-body.
+
+```php
+$chunk = folk_read(65536);
+```
+
+### `folk_read_all(): string`
+
+Low-level version of `Folk::readAll()`. Read the entire request body.
+
+```php
+$body = folk_read_all();
 ```
 
 ### `folk_worker_run(string $dispatch_fn): void`
@@ -215,6 +251,42 @@ If `response.after` hooks are configured in `folk.toml`, Folk buffers the full r
 ### Backward compatibility
 
 Handlers that return a value without calling `writeHead()` continue to work exactly as before. Folk converts the return value to the streaming protocol internally.
+
+---
+
+## Request body streaming
+
+By default Folk reads the entire request body into memory before dispatching to PHP, and delivers it in `$payload['body']`. For large uploads this holds the whole body in RAM and is capped by `max_request_size` (413 otherwise).
+
+With `stream_request_body = true` in `[http]`, Folk dispatches the request **before** the body is read. The body is delivered to PHP as a chunk stream, pulled via `Folk::read()` / `Folk::readAll()`. This lets you stream uploads straight to disk without buffering, and replaces nginx as an upload buffer.
+
+```toml
+[http]
+stream_request_body = true
+```
+
+```php
+// stream a large upload to disk, chunk by chunk
+Route::post('/upload', function () {
+    $handle = fopen(storage_path('app/upload.bin'), 'wb');
+    $size = 0;
+    while (($chunk = \Folk\Sdk\Folk::read(65536)) !== '') {
+        $size += fwrite($handle, $chunk);
+    }
+    fclose($handle);
+    return response()->json(['received' => $size]);
+});
+```
+
+**Backpressure** is automatic: when PHP reads slowly, Folk stops reading the socket — the upload is paced by how fast PHP consumes it.
+
+**Notes & limits:**
+
+- Opt-in and **global**: when `true`, `$payload['body']` is absent for every request (`body_stream: true` is set instead) and PHP must use `Folk::read()`. Per-route activation is planned for the framework adapters.
+- `max_request_size` is **not** enforced in this mode — the application controls how much it reads.
+- `read_timeout` (buffered-read timeout) does not apply; the overall ceiling is `[workers] exec_timeout`.
+- If the client disconnects mid-upload, `Folk::read()` returns `""` (EOF) — validate `Content-Length` yourself if integrity matters.
+- Framework adapters (Laravel, Symfony, …) currently build an empty-body request in streaming mode; use `Folk::read()` directly in the handler. Full PSR-7 / uploaded-file integration is tracked separately.
 
 ---
 

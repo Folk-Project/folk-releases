@@ -1,6 +1,41 @@
 ### What's new
 
-Worker response contract + error model ([#71](https://github.com/Folk-Project/folk-releases/issues/71), [#72](https://github.com/Folk-Project/folk-releases/issues/72)).
+Request body streaming ([#70](https://github.com/Folk-Project/folk-releases/issues/70)).
+
+Folk can now stream the **request** body to PHP chunk by chunk instead of
+buffering the whole thing in memory — the request-side counterpart to response
+streaming. This lets you accept large uploads (and stream them straight to disk)
+without holding them in RAM or hitting `max_request_size`, so Folk can replace
+nginx as an upload buffer.
+
+- **Opt-in via `[http] stream_request_body = true`** (default `false`). When
+  off, behaviour is unchanged — the body is buffered into `$payload['body']`.
+- When on, Folk dispatches the request **before** reading the body and delivers
+  it as a chunk stream. PHP pulls it with `Folk::read(int $length = 8192)` /
+  `Folk::readAll()` (low-level: `folk_read` / `folk_read_all`).
+- **Automatic backpressure**: a slow PHP reader paces the upload — Folk stops
+  reading the socket until PHP consumes more.
+- `max_request_size` is not enforced in streaming mode; the application controls
+  how much it reads.
+
+```php
+Route::post('/upload', function () {
+    $handle = fopen(storage_path('app/upload.bin'), 'wb');
+    while (($chunk = \Folk\Sdk\Folk::read(65536)) !== '') {
+        fwrite($handle, $chunk);
+    }
+    fclose($handle);
+    return response()->json(['ok' => true]);
+});
+```
+
+This is Level 1 (raw streaming). `multipart/form-data` parsing and framework
+adapter integration (PSR-7 streamed body, uploaded files, per-route activation)
+are tracked in [#73](https://github.com/Folk-Project/folk-releases/issues/73).
+
+---
+
+### Worker response contract + error model ([#71](https://github.com/Folk-Project/folk-releases/issues/71), [#72](https://github.com/Folk-Project/folk-releases/issues/72)).
 
 A worker now finalizes a request in one of three explicit shapes — a **verbatim
 return value**, a **stream**, or a **fatal error** — instead of forcing every
@@ -69,16 +104,16 @@ foreach ($events as $event) {
 
 | Package | Version | Type |
 |---------|---------|------|
-| folk-api | 0.2.9 | crates.io |
-| folk-core | 0.3.8 | crates.io |
-| folk-ext | 0.3.8 | crates.io |
-| folk-plugin-http | 0.4.1 | crates.io |
+| folk-api | 0.2.10 | crates.io |
+| folk-core | 0.3.9 | crates.io |
+| folk-ext | 0.3.9 | crates.io |
+| folk-plugin-http | 0.4.2 | crates.io |
 | folk-plugin-grpc | 0.2.7 | crates.io |
 | folk-plugin-jobs | 0.3.4 | crates.io |
 | folk-plugin-metrics | 0.2.3 | crates.io |
 | folk-plugin-process | 0.2.4 | crates.io |
-| folk-builder | 0.2.5 | crates.io |
-| folk-sdk | 0.3.2 | packagist |
+| folk-builder | 0.2.6 | crates.io |
+| folk-sdk | 0.3.3 | packagist |
 | folk/laravel | 0.3.5 | packagist |
 | folk/spiral | 0.1.2 | packagist |
 | folk/symfony | 0.1.2 | packagist |
