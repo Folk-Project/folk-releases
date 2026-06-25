@@ -178,6 +178,36 @@ Route::get('/events', function () {
 });
 ```
 
+### Request ID in streaming responses
+
+`Folk::requestId()` returns the same UUID for the entire duration of the handler — including while calling `writeHead/write/end`. Use it to correlate logs or expose it to the client:
+
+```php
+Route::get('/events', function () {
+    \Folk\Sdk\Folk::writeHead(200, [
+        'Content-Type' => 'text/event-stream',
+        'Cache-Control' => 'no-cache',
+        'X-Request-ID' => \Folk\Sdk\Folk::requestId(), // expose to client
+    ]);
+
+    try {
+        foreach (generateEvents() as $event) {
+            \Folk\Sdk\Folk::write("data: {$event}\n\n");
+        }
+    } catch (\Throwable $e) {
+        // requestId() is still valid here — same UUID
+        Log::error('stream failed', [
+            'request_id' => \Folk\Sdk\Folk::requestId(),
+            'error'      => $e->getMessage(),
+        ]);
+    }
+
+    \Folk\Sdk\Folk::end();
+});
+```
+
+The same UUID also appears in Folk's Rust-side HTTP access log, so you can correlate server logs with client-visible `X-Request-ID` header.
+
 ### Note on hooks
 
 If `response.after` hooks are configured in `folk.toml`, Folk buffers the full response body before running them. True streaming is only active when no `response.after` hooks are registered.
