@@ -48,6 +48,7 @@ nav:
       - Metrics: plugins/metrics.md
       - Process: plugins/process.md
   - PHP API: php-api.md
+  - Streaming: streaming.md
   - Benchmarks: benchmarks.md
   - Contributing: contributing.md
 

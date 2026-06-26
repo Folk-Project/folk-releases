@@ -332,11 +332,11 @@ Route::post('/upload', function () {
 
 **Notes & limits:**
 
-- Opt-in and **global**: when `true`, `$payload['body']` is absent for every request (`body_stream: true` is set instead) and PHP must use `Folk::read()`. Per-route activation is planned for the framework adapters.
+- Opt-in and **per-path** via `stream_request_body_paths` (empty = every path). When a path streams, `$payload['body']` is absent (`body_stream: true` is set instead) and PHP must use `Folk::read()`.
 - `max_request_size` is **not** enforced in this mode — the application controls how much it reads.
 - `read_timeout` (buffered-read timeout) does not apply; the overall ceiling is `[workers] exec_timeout`.
 - If the client disconnects mid-upload, `Folk::read()` returns `""` (EOF) — validate `Content-Length` yourself if integrity matters.
-- Framework adapters (Laravel, Symfony, …) currently build an empty-body request in streaming mode; use `Folk::read()` directly in the handler. Full PSR-7 / uploaded-file integration is tracked separately.
+- The code above is the **low-level** path. On **Laravel** you can instead let the adapter wire streaming into `$request->file()` / streamed responses — see [Streaming → Laravel](streaming.md#laravel). On a streamed path the adapter consumes the body, so use `$request`, not raw `Folk::read()`. Symfony/Spiral/Yii 3 still use the low-level API.
 
 <a id="multipart-streaming"></a>
 ### Multipart form data
@@ -361,7 +361,7 @@ Route::post('/upload', function () {
 });
 ```
 
-Parts arrive in transmission order (fields and files interleaved as the client sent them). Process each part before calling `nextPart()` again — see [`Part`](#multipart-part). Backpressure and per-part streaming work the same as raw bodies. Same caveats apply: adapters build an empty-body request in streaming mode (use `Folk::nextPart()` directly); per-route activation and PSR-7 `UploadedFile` integration are tracked separately.
+Parts arrive in transmission order (fields and files interleaved as the client sent them). Process each part before calling `nextPart()` again — see [`Part`](#multipart-part). Backpressure and per-part streaming work the same as raw bodies. This is the low-level path; on **Laravel** the adapter turns streamed multipart parts into normal `$request->file()` uploads — see [Streaming → Laravel file uploads](streaming.md#file-uploads).
 
 ---
 
