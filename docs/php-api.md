@@ -65,6 +65,40 @@ Read the entire request body, blocking until end-of-body. Returns `""` when ther
 $body = \Folk\Sdk\Folk::readAll();
 ```
 
+### `Folk::nextPart(): ?\Folk\Sdk\Http\Part`
+
+Advance to the next part of a streamed `multipart/form-data` request. Returns the next [`Part`](#multipart-part), or `null` when there are no more parts (or the request is not a multipart streaming request, or the extension is not loaded). Any unread data of the current part is drained first, so it is safe to skip parts.
+
+Yields parts only when the HTTP plugin runs with `stream_request_body = true` and the request `Content-Type` is `multipart/form-data` — Folk parses the boundary in Rust, so PHP never sees boundary bytes. See [Multipart streaming](#multipart-streaming).
+
+```php
+while ($part = \Folk\Sdk\Folk::nextPart()) {
+    if ($part->isFile()) {
+        $h = fopen('/var/uploads/' . basename($part->filename), 'wb');
+        while (($chunk = $part->read(65536)) !== '') {
+            fwrite($h, $chunk);
+        }
+        fclose($h);
+    } else {
+        $fields[$part->name] = $part->readAll();
+    }
+}
+```
+
+<a id="multipart-part"></a>
+### `\Folk\Sdk\Http\Part`
+
+One part of a streamed multipart request, returned by `Folk::nextPart()`.
+
+- `string|null $name` — form field name.
+- `string|null $filename` — file name (set for file parts, `null` for plain fields).
+- `string|null $contentType` — the part's declared `Content-Type`.
+- `isFile(): bool` — true when the part has a filename.
+- `read(int $length = 8192): string` — next chunk of this part's body; `""` at the part's end.
+- `readAll(): string` — the whole part body.
+
+Parts are processed **sequentially**: read (or skip) the current part before calling `nextPart()` again. The read methods pull from Folk's current-part cursor — do not hold or read a `Part` after advancing.
+
 ---
 
 ## Native functions
@@ -144,6 +178,22 @@ Low-level version of `Folk::readAll()`. Read the entire request body.
 ```php
 $body = folk_read_all();
 ```
+
+### `folk_next_part(): ?string`
+
+Low-level version of `Folk::nextPart()`. Returns a JSON object `{"name":...,"filename":...,"content_type":...}` for the next multipart part, or `null` when there are no more parts. Read the part body with `folk_part_read` / `folk_part_read_all`.
+
+```php
+$meta = folk_next_part(); // '{"name":"avatar","filename":"a.png","content_type":"image/png"}' | null
+```
+
+### `folk_part_read(int $length = 8192): string`
+
+Read up to `$length` bytes of the current multipart part; `""` at the part's end.
+
+### `folk_part_read_all(): string`
+
+Read the entire current multipart part.
 
 ### `folk_worker_run(string $dispatch_fn): void`
 
@@ -287,6 +337,31 @@ Route::post('/upload', function () {
 - `read_timeout` (buffered-read timeout) does not apply; the overall ceiling is `[workers] exec_timeout`.
 - If the client disconnects mid-upload, `Folk::read()` returns `""` (EOF) — validate `Content-Length` yourself if integrity matters.
 - Framework adapters (Laravel, Symfony, …) currently build an empty-body request in streaming mode; use `Folk::read()` directly in the handler. Full PSR-7 / uploaded-file integration is tracked separately.
+
+<a id="multipart-streaming"></a>
+### Multipart form data
+
+When `stream_request_body = true` and the request is `multipart/form-data`, Folk parses the boundary in Rust (no boundary bytes reach PHP) and hands you parts one at a time via `Folk::nextPart()`. File parts can be streamed to disk without buffering, exactly like raw bodies:
+
+```php
+Route::post('/upload', function () {
+    $fields = [];
+    while ($part = \Folk\Sdk\Folk::nextPart()) {
+        if ($part->isFile()) {
+            $h = fopen(storage_path('app/' . basename($part->filename)), 'wb');
+            while (($chunk = $part->read(65536)) !== '') {
+                fwrite($h, $chunk);
+            }
+            fclose($h);
+        } else {
+            $fields[$part->name] = $part->readAll();
+        }
+    }
+    return response()->json(['fields' => $fields]);
+});
+```
+
+Parts arrive in transmission order (fields and files interleaved as the client sent them). Process each part before calling `nextPart()` again — see [`Part`](#multipart-part). Backpressure and per-part streaming work the same as raw bodies. Same caveats apply: adapters build an empty-body request in streaming mode (use `Folk::nextPart()` directly); per-route activation and PSR-7 `UploadedFile` integration are tracked separately.
 
 ---
 

@@ -103,9 +103,11 @@ read_timeout = "10s"
 # Maximum time to write the response.
 write_timeout = "30s"
 
-# Stream the request body to PHP (read via Folk::read / Folk::readAll) instead of
-# buffering it into $payload['body']. When true, max_request_size is not enforced.
-# Opt-in; default false. See docs/php-api.md "Request body streaming".
+# Stream the request body to PHP instead of buffering it into $payload['body'].
+# Raw bodies are read via Folk::read / Folk::readAll; multipart/form-data is
+# parsed in Rust and read part-by-part via Folk::nextPart. When true,
+# max_request_size is not enforced. Opt-in; default false.
+# See docs/php-api.md "Request body streaming" / "Multipart form data".
 # stream_request_body = false
 
 # -----------------------------------------------------------------------------

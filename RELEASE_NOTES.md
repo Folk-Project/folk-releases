@@ -1,6 +1,40 @@
 ### What's new
 
-Request body streaming ([#70](https://github.com/Folk-Project/folk-releases/issues/70)).
+Multipart streaming ([#70](https://github.com/Folk-Project/folk-releases/issues/70), Level 2).
+
+`multipart/form-data` uploads can now be streamed part-by-part. When
+`stream_request_body = true` and the request is multipart, Folk parses the
+boundary in **Rust** (via `multer`) and hands PHP parts one at a time — PHP
+never sees boundary bytes. File parts stream to disk without buffering, just
+like raw bodies.
+
+```php
+while ($part = \Folk\Sdk\Folk::nextPart()) {
+    if ($part->isFile()) {
+        $h = fopen('/var/uploads/' . basename($part->filename), 'wb');
+        while (($chunk = $part->read(65536)) !== '') {
+            fwrite($h, $chunk);
+        }
+        fclose($h);
+    } else {
+        $fields[$part->name] = $part->readAll();
+    }
+}
+```
+
+- `Folk::nextPart(): ?Part` — advance to the next part (drains the current one
+  if unread); `Part` exposes `name`, `filename`, `contentType`, `isFile()`,
+  `read()`, `readAll()`.
+- Same opt-in flag as raw streaming (`stream_request_body`); multipart requests
+  are detected by `Content-Type` automatically.
+- Backpressure and per-part streaming preserved.
+
+Framework-adapter integration (PSR-7 `UploadedFile`, per-route activation) is
+tracked in [#73](https://github.com/Folk-Project/folk-releases/issues/73).
+
+---
+
+### Request body streaming ([#70](https://github.com/Folk-Project/folk-releases/issues/70)).
 
 Folk can now stream the **request** body to PHP chunk by chunk instead of
 buffering the whole thing in memory — the request-side counterpart to response
@@ -104,16 +138,16 @@ foreach ($events as $event) {
 
 | Package | Version | Type |
 |---------|---------|------|
-| folk-api | 0.2.10 | crates.io |
-| folk-core | 0.3.9 | crates.io |
-| folk-ext | 0.3.9 | crates.io |
-| folk-plugin-http | 0.4.2 | crates.io |
+| folk-api | 0.2.11 | crates.io |
+| folk-core | 0.3.10 | crates.io |
+| folk-ext | 0.3.10 | crates.io |
+| folk-plugin-http | 0.4.3 | crates.io |
 | folk-plugin-grpc | 0.2.7 | crates.io |
 | folk-plugin-jobs | 0.3.4 | crates.io |
 | folk-plugin-metrics | 0.2.3 | crates.io |
 | folk-plugin-process | 0.2.4 | crates.io |
-| folk-builder | 0.2.6 | crates.io |
-| folk-sdk | 0.3.3 | packagist |
+| folk-builder | 0.2.7 | crates.io |
+| folk-sdk | 0.3.4 | packagist |
 | folk/laravel | 0.3.5 | packagist |
 | folk/spiral | 0.1.2 | packagist |
 | folk/symfony | 0.1.2 | packagist |
