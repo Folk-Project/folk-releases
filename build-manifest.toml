@@ -6,7 +6,7 @@
 # CI reads this file, generates folk.build.toml, and runs folk-builder.
 
 [release]
-version = "0.1.13"
+version = "0.1.16"
 
 [builder]
 version = "0.2.*"
