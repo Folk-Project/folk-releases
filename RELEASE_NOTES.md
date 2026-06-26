@@ -2,35 +2,59 @@
 
 Multipart streaming ([#70](https://github.com/Folk-Project/folk-releases/issues/70), Level 2).
 
-`multipart/form-data` uploads can now be streamed part-by-part. When
-`stream_request_body = true` and the request is multipart, Folk parses the
-boundary in **Rust** (via `multer`) and hands PHP parts one at a time — PHP
-never sees boundary bytes. File parts stream to disk without buffering, just
-like raw bodies.
+Level 1 (the previous release) let PHP stream a **raw** request body. But HTML
+forms with file inputs send `multipart/form-data` — a stream of boundary
+delimiters with fields and files interleaved. To get a file out, the app had to
+either parse that boundary itself on top of `Folk::read`, or fall back to
+buffering the whole body (defeating streaming for large uploads).
+
+Now Folk does the parsing. When `stream_request_body = true` and the request is
+`multipart/form-data`, Folk parses the boundary in **Rust** (via the `multer`
+crate, the same parser behind axum's multipart extractor) and hands PHP one
+part at a time. PHP never sees boundary bytes; file parts stream to disk chunk
+by chunk without ever being buffered in full.
 
 ```php
-while ($part = \Folk\Sdk\Folk::nextPart()) {
-    if ($part->isFile()) {
-        $h = fopen('/var/uploads/' . basename($part->filename), 'wb');
-        while (($chunk = $part->read(65536)) !== '') {
-            fwrite($h, $chunk);
+Route::post('/upload', function () {
+    $fields = [];
+    while ($part = \Folk\Sdk\Folk::nextPart()) {
+        if ($part->isFile()) {
+            $h = fopen('/var/uploads/' . basename($part->filename), 'wb');
+            while (($chunk = $part->read(65536)) !== '') {
+                fwrite($h, $chunk);
+            }
+            fclose($h);
+        } else {
+            $fields[$part->name] = $part->readAll();
         }
-        fclose($h);
-    } else {
-        $fields[$part->name] = $part->readAll();
     }
-}
+    return response()->json(['fields' => $fields]);
+});
 ```
 
-- `Folk::nextPart(): ?Part` — advance to the next part (drains the current one
-  if unread); `Part` exposes `name`, `filename`, `contentType`, `isFile()`,
-  `read()`, `readAll()`.
-- Same opt-in flag as raw streaming (`stream_request_body`); multipart requests
-  are detected by `Content-Type` automatically.
-- Backpressure and per-part streaming preserved.
+**API.** `Folk::nextPart(): ?Part` advances to the next part and returns `null`
+when there are none left. `Part` exposes `name`, `filename`, `contentType`,
+`isFile()`, `read(int $length = 8192)` and `readAll()`. Parts arrive in
+transmission order (fields and files interleaved as the client sent them).
 
-Framework-adapter integration (PSR-7 `UploadedFile`, per-route activation) is
-tracked in [#73](https://github.com/Folk-Project/folk-releases/issues/73).
+**How it works.** A background task in the HTTP plugin runs `multer` over the
+incoming body and emits owned part events (start / data / end) into a bounded
+channel; the PHP worker pulls them via `folk_next_part` / `folk_part_read`. A
+slow reader fills the channel, which pauses the parser, which stops Folk reading
+the socket — backpressure all the way down to TCP, identical to raw streaming.
+
+**Notes & limits.**
+
+- Same opt-in flag as raw streaming (`stream_request_body`); multipart requests
+  are detected by `Content-Type` automatically — no extra config.
+- Process each part before calling `nextPart()` again. Advancing auto-drains an
+  unread part, so it is safe to skip parts you don't care about.
+- `max_request_size` is not enforced in streaming mode (the app decides how much
+  to read); a client disconnect mid-upload surfaces as end-of-parts.
+- Framework adapters build an empty-body request in streaming mode, so use
+  `Folk::nextPart()` directly in the handler. PSR-7 `UploadedFile` integration
+  and per-route activation are tracked in
+  [#73](https://github.com/Folk-Project/folk-releases/issues/73).
 
 ---
 
