@@ -19,12 +19,12 @@ There are two ways to use it:
 
 Framework wiring status:
 
-| Framework | Request (uploads) | Response | Notes |
-|-----------|:-----------------:|:--------:|-------|
-| **Laravel** | ✅ | ✅ | This page |
-| Symfony | — | — | Use the low-level API for now |
-| Spiral | — | — | Use the low-level API for now |
-| Yii 3 | — | — | Use the low-level API for now |
+| Framework | Request (uploads) | Response | Response streaming trigger |
+|-----------|:-----------------:|:--------:|----------------------------|
+| **Laravel** | ✅ | ✅ | `StreamedResponse` |
+| **Symfony** | ✅ | ✅ | `StreamedResponse` |
+| **Spiral** | ✅ | ✅ | `X-Folk-Stream: yes` / unknown body size |
+| **Yii 3** | ✅ | ✅ | `X-Folk-Stream: yes` / unknown body size |
 
 ---
 
@@ -168,9 +168,56 @@ upstream streams.
 
 ---
 
-## Other frameworks
+## Symfony
 
-Symfony, Spiral and Yii 3 do not yet wire streaming into their request/response
-lifecycle. Until they do, use the [low-level API](php-api.md#request-body-streaming)
-(`Folk::read()`, `Folk::nextPart()`, `Folk::writeHead()/write()/end()`) directly
-in your handler — it works in every adapter.
+Identical to Laravel — Symfony uses the same HttpFoundation request/response.
+List the route in `stream_request_body_paths`, then use `$request->files->get()`
+and `$request->request->get()`; return a `StreamedResponse` for chunked output.
+
+Per-path size limits come from container parameters (or the `FOLK_STREAM_MAX_BYTES`
+env var):
+
+```yaml
+# config/services.yaml
+parameters:
+    folk.streaming.max_request_bytes: 0
+    folk.streaming.limits:
+        '/api/files/*': 1073741824
+```
+
+## Spiral & Yii 3 (PSR-7)
+
+Uploads work through standard PSR-7: on a streamed path the adapter populates
+`$request->getUploadedFiles()` and `$request->getParsedBody()` from the stream.
+
+```php
+// Spiral / Yii 3 controller
+$file = $request->getUploadedFiles()['avatar'] ?? null;   // UploadedFileInterface
+$name = ($request->getParsedBody() ?? [])['name'] ?? null;
+```
+
+PSR-7 has no `StreamedResponse` class, so a streamed response is signalled one of
+two ways:
+
+- the response body has an **unknown size** (`getBody()->getSize() === null`) — a
+  genuinely lazy/generator-backed stream; or
+- the response carries the header **`X-Folk-Stream: yes`** — an explicit opt-in,
+  handy when the body technically has a size but you still want chunked output
+  (SSE, long responses):
+
+```php
+return $response
+    ->withHeader('Content-Type', 'text/event-stream')
+    ->withHeader('X-Folk-Stream', 'yes');   // adapter pipes the body to Folk::write
+```
+
+Otherwise the response is buffered (which also keeps `response.after` Lua hooks
+working). The per-path size limit comes from the `FOLK_STREAM_MAX_BYTES` env var.
+
+## Low-level API
+
+Every adapter still exposes the raw primitives (`Folk::read()`,
+`Folk::nextPart()`, `Folk::writeHead()/write()/end()`) for handlers that bypass
+the framework — see [PHP API](php-api.md#request-body-streaming). On a path the
+adapter already manages, use the framework request/response instead; the two are
+mutually exclusive on the same path.

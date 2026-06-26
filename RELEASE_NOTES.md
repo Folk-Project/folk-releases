@@ -1,15 +1,57 @@
 ### What's new
 
-Streaming wired into the Laravel request/response lifecycle ([#73](https://github.com/Folk-Project/folk-releases/issues/73)).
+Streaming wired into the Symfony, Spiral and Yii 3 adapters ([#73](https://github.com/Folk-Project/folk-releases/issues/73)).
 
-Previous releases added the streaming primitives — raw body (`Folk::read`),
+The previous release brought framework-native streaming to Laravel. This one
+finishes the job for the remaining adapters — uploads and streamed responses now
+flow through the normal request/response lifecycle everywhere. No extension
+rebuild is needed: this is a pure-PHP release (the streaming primitives already
+ship in the extension).
+
+**Symfony** behaves exactly like Laravel (same HttpFoundation): list the route in
+`stream_request_body_paths`, then use `$request->files->get()` /
+`$request->request->get()` and return a `StreamedResponse` for chunked output.
+Per-path size limits come from container parameters or `FOLK_STREAM_MAX_BYTES`.
+
+**Spiral & Yii 3** (PSR-7): on a streamed path the adapter populates
+`$request->getUploadedFiles()` and `$request->getParsedBody()` from the stream,
+so controllers use standard PSR-7:
+
+```php
+$file = $request->getUploadedFiles()['avatar'] ?? null;   // UploadedFileInterface
+$name = ($request->getParsedBody() ?? [])['name'] ?? null;
+```
+
+PSR-7 has no `StreamedResponse` class, so a response is streamed when its body
+has an unknown size **or** it carries an explicit `X-Folk-Stream: yes` header —
+handy for SSE and long responses whose body size is otherwise known:
+
+```php
+return $response
+    ->withHeader('Content-Type', 'text/event-stream')
+    ->withHeader('X-Folk-Stream', 'yes');   // adapter pipes the body to Folk::write
+```
+
+All the Laravel behaviour carries over: multipart parts spool to temp files
+chunk by chunk and are cleaned up after the response, a per-path limit returns
+HTTP 413, and buffered/known-size responses keep working (including
+`response.after` Lua hooks).
+
+This closes #73 — streaming is now wired into every Folk framework adapter. See
+the [Streaming guide](https://folk-project.github.io/folk-releases/streaming/).
+
+---
+
+### Streaming wired into the Laravel lifecycle ([#73](https://github.com/Folk-Project/folk-releases/issues/73))
+
+Earlier releases added the streaming primitives — raw body (`Folk::read`),
 multipart parsing (`Folk::nextPart`), and chunked responses (`Folk::write`) —
-but using them meant writing low-level handlers against `Folk::*`. The
-framework still saw an empty-body request and buffered every streamed response.
-This release connects streaming to the **normal Laravel lifecycle**: keep using
+but using them meant writing low-level handlers against `Folk::*`. The framework
+still saw an empty-body request and buffered every streamed response. This
+connected streaming to the **normal Laravel lifecycle**: keep using
 `$request->file()`, validation and `StreamedResponse`.
 
-**Per-path activation.** Streaming is now opt-in per path, so enabling it for an
+**Per-path activation.** Streaming is opt-in per path, so enabling it for an
 upload route does not break normal form/JSON routes:
 
 ```toml
@@ -56,10 +98,6 @@ of buffering it — ideal for CSV/NDJSON exports, SSE, and proxied streams.
 Also: urlencoded form bodies are now parsed into POST parameters on buffered
 routes.
 
-This is **Laravel-first**. Symfony, Spiral and Yii 3 keep using the low-level
-`Folk::*` API until their adapters are wired in a later release. See the new
-[Streaming guide](https://folk-project.github.io/folk-releases/streaming/).
-
 ### Versions
 
 | Package | Version | Type |
@@ -73,8 +111,8 @@ This is **Laravel-first**. Symfony, Spiral and Yii 3 keep using the low-level
 | folk-plugin-metrics | 0.2.3 | crates.io |
 | folk-plugin-process | 0.2.4 | crates.io |
 | folk-builder | 0.2.7 | crates.io |
-| folk-sdk | 0.3.5 | packagist |
+| folk-sdk | 0.3.6 | packagist |
 | folk/laravel | 0.3.6 | packagist |
-| folk/spiral | 0.1.2 | packagist |
-| folk/symfony | 0.1.2 | packagist |
-| folk/yii3 | 0.1.1 | packagist |
+| folk/spiral | 0.1.3 | packagist |
+| folk/symfony | 0.1.3 | packagist |
+| folk/yii3 | 0.1.2 | packagist |
