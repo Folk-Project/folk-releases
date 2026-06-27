@@ -80,6 +80,53 @@ to the plugin; the Symfony/Spiral/Yii 3 `FolkQueue::push()` gained an
 came from (the addressed `<connection>.<queue>`), instead of always seeing
 `default`.
 
+Native queue adapters for Symfony, Spiral and Yii 3 ([#76](https://github.com/Folk-Project/folk-releases/issues/76)).
+
+Until now only Laravel plugged Folk into its framework's own queue; Symfony,
+Spiral and Yii 3 had a bespoke `FolkQueue::push()` helper you called by hand.
+This release makes Folk a **native** queue backend in all three, so apps
+dispatch jobs the idiomatic way and Folk is "just another transport/driver".
+No Rust changes — this builds entirely on the phase-74 `jobs.push`/`jobs.process`
+contract; the bespoke `FolkQueue` helpers are kept but deprecated.
+
+* **Symfony** — a Messenger transport. Register `FolkTransportFactory` (tag
+  `messenger.transport_factory`) and route messages to a `folk://<connection>.<queue>`
+  DSN; `MessageBusInterface::dispatch()` then flows through Folk and is consumed
+  back into the bus by `FolkMessengerJobHandler`. `DelayStamp` maps to the
+  plugin delay.
+
+  ```yaml
+  framework:
+      messenger:
+          transports:
+              folk: 'folk://memory.default'
+          routing:
+              App\Message\SendEmail: folk
+  ```
+
+* **Spiral** — a `Spiral\Queue\QueueInterface` driver. Register it as a queue
+  connection so `QueueInterface::push()` routes through Folk; consumption is
+  resolved through Spiral's `HandlerRegistryInterface`.
+
+  ```php
+  // app/config/queue.php
+  return [
+      'default' => 'folk',
+      'connections' => [
+          'folk' => ['driver' => \Folk\Spiral\Jobs\FolkQueueDriver::class],
+      ],
+  ];
+  ```
+
+* **Yii 3** — a `yiisoft/queue` `AdapterInterface`. Bind `FolkQueueAdapter` as
+  the queue adapter; `QueueInterface::push(new Message(...))` goes through Folk
+  and is consumed through the Yii `Worker`. (`yiisoft/queue` has no stable tag
+  yet — require `^3.0@dev`.)
+
+All three keep the prefix addressing `[<connection>.]<queue>` and thread the
+real queue into the handler. Job/message ids are now **UUID v7** (time-ordered,
+consistent with Folk's `request_id`) via a new `Folk\Sdk\Uuid` helper.
+
 ### Versions
 
 | Package | Version | Type |
@@ -93,8 +140,8 @@ came from (the addressed `<connection>.<queue>`), instead of always seeing
 | folk-plugin-metrics | 0.2.3 | crates.io |
 | folk-plugin-process | 0.2.4 | crates.io |
 | folk-builder | 0.2.8 | crates.io |
-| folk-sdk | 0.3.6 | packagist |
+| folk-sdk | 0.3.7 | packagist |
 | folk/laravel | 0.3.7 | packagist |
-| folk/spiral | 0.1.4 | packagist |
-| folk/symfony | 0.1.4 | packagist |
-| folk/yii3 | 0.1.3 | packagist |
+| folk/spiral | 0.1.5 | packagist |
+| folk/symfony | 0.1.5 | packagist |
+| folk/yii3 | 0.1.4 | packagist |
