@@ -108,24 +108,59 @@ h2c = false                            # HTTP/2 cleartext (without TLS)
 # =============================================================================
 # Jobs Plugin
 # =============================================================================
-[jobs]
-driver = "memory"                      # "memory" or "redis"
+# Each backend ("driver") is declared as a connection that nests its own
+# queues. The connection key IS the driver name, so there is ONE instance per
+# driver type (two [jobs.connections.redis] sections = a TOML duplicate-key
+# error). Different drivers run side by side.
+#
+# Drivers must be compiled into the build: default features are
+# ["memory", "redis"]; "embedded" (redb) is opt-in via folk.build.toml
+# (features = ["embedded"]). A connection section whose driver is not compiled
+# in makes the server fail fast at startup with an actionable message.
 
-# Redis connection (when driver = "redis")
-host = "127.0.0.1"
-port = 6379
-password = ""
-db = 0
+# In-memory driver — no persistence. The section only declares queues.
+[jobs.connections.memory]
+  [jobs.connections.memory.queues.default]
+  concurrency = 4                      # Concurrent consumers for this queue
+  max_retries = 3                      # Retries before DLQ or discard
+  retry_delay = "1s"                   # Base delay between retries
+  retry_backoff = "exponential"        # "exponential", "linear", "fixed"
+  job_timeout = "60s"                  # Max job execution time ("0s" = unlimited)
+  # dead_letter_queue = "failed"       # Queue name for failed jobs (omit to discard)
+  priority = 10                        # Lower number = higher priority
 
-[[jobs.queues]]
-name = "default"
-concurrency = 4                        # Concurrent consumers for this queue
-max_retries = 3                        # Retries before DLQ or discard
-retry_delay = "1s"                     # Base delay between retries
-retry_backoff = "exponential"          # "exponential", "linear", "fixed"
-job_timeout = "60s"                    # Max job execution time ("0s" = unlimited)
-# dead_letter_queue = "failed"         # Queue name for failed jobs (omit to discard)
-priority = 10                          # Lower number = higher priority
+# Redis driver.
+# [jobs.connections.redis]
+# host = "127.0.0.1"
+# port = 6379
+# username = ""                        # Redis ACL username (optional)
+# password = ""
+# db = 0
+# tls = false                          # true → rediss:// scheme
+# key_prefix = ""                      # Prefix applied to all queue keys
+# pool_size = 8
+# connect_timeout = "5s"
+# command_timeout = "5s"
+# url = ""                             # Full URL override; non-empty wins over the fields above
+#   [jobs.connections.redis.queues.emails]
+#   concurrency = 8
+#   dead_letter_queue = "failed"
+
+# Embedded driver (redb) — pure-Rust persistent ACID queue, single file.
+# Requires the "embedded" Cargo feature in the build.
+# [jobs.connections.embedded]
+# path = "var/jobs.redb"
+# durability = "eventual"              # "eventual" (fast) or "immediate" (fsync per commit)
+#   [jobs.connections.embedded.queues.heavy]
+#   concurrency = 2
+
+# Addressing from PHP: a job's queue name may carry an optional connection
+# prefix — "[<connection>.]<queue>" (e.g. ->onQueue("redis.emails")). A bare
+# name (no prefix) resolves directly when it is unique across all connections;
+# if the same bare name exists in more than one connection, it is ambiguous and
+# jobs.push returns an error asking for a prefix. The prefix is split on the
+# FIRST dot and is treated as a connection only when it matches a declared
+# connection — so avoid naming a queue with a leading "<driver>." segment.
 
 # =============================================================================
 # gRPC Plugin

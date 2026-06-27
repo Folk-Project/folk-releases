@@ -4,16 +4,26 @@
 # when building pre-compiled folk.so binaries.
 #
 # CI reads this file, generates folk.build.toml, and runs folk-builder.
+#
+# Plugins may be declared in two forms:
+#   * string form:  folk-plugin-http = "0.4.*"          (default features)
+#   * table form:   [plugins.folk-plugin-jobs]          (with Cargo features)
+#                   version  = "0.4.*"
+#                   features = ["redis", "embedded"]
+# Table-form entries MUST come after all string-form entries (TOML rule).
 
 [release]
-version = "0.1.16"
+version = "0.1.17"
 
 [builder]
 version = "0.2.*"
 
 [plugins]
 folk-plugin-http = "0.4.*"
-folk-plugin-jobs = "0.3.*"
 folk-plugin-grpc = "0.2.*"
 folk-plugin-metrics = "0.2.*"
 folk-plugin-process = "0.2.*"
+
+[plugins.folk-plugin-jobs]
+version = "0.4.*"
+features = ["redis", "embedded"]

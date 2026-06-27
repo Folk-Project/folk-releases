@@ -1,102 +1,84 @@
 ### What's new
 
-Streaming wired into the Symfony, Spiral and Yii 3 adapters ([#73](https://github.com/Folk-Project/folk-releases/issues/73)).
+Pluggable jobs drivers ([#46](https://github.com/Folk-Project/folk-releases/issues/46)).
 
-The previous release brought framework-native streaming to Laravel. This one
-finishes the job for the remaining adapters — uploads and streamed responses now
-flow through the normal request/response lifecycle everywhere. No extension
-rebuild is needed: this is a pure-PHP release (the streaming primitives already
-ship in the extension).
+The jobs plugin now hosts multiple queue backends behind one shared
+consumer/retry/DLQ machinery. Each backend is a **connection** that nests its
+own queues, and each backend is a Cargo feature — so a build only pulls in the
+drivers it actually uses. This release ships the foundation plus three
+simple-tier drivers: **memory**, **redis**, and a new pure-Rust persistent
+**embedded** (redb) driver.
 
-**Symfony** behaves exactly like Laravel (same HttpFoundation): list the route in
-`stream_request_body_paths`, then use `$request->files->get()` /
-`$request->request->get()` and return a `StreamedResponse` for chunked output.
-Per-path size limits come from container parameters or `FOLK_STREAM_MAX_BYTES`.
-
-**Spiral & Yii 3** (PSR-7): on a streamed path the adapter populates
-`$request->getUploadedFiles()` and `$request->getParsedBody()` from the stream,
-so controllers use standard PSR-7:
-
-```php
-$file = $request->getUploadedFiles()['avatar'] ?? null;   // UploadedFileInterface
-$name = ($request->getParsedBody() ?? [])['name'] ?? null;
-```
-
-PSR-7 has no `StreamedResponse` class, so a response is streamed when its body
-has an unknown size **or** it carries an explicit `X-Folk-Stream: yes` header —
-handy for SSE and long responses whose body size is otherwise known:
-
-```php
-return $response
-    ->withHeader('Content-Type', 'text/event-stream')
-    ->withHeader('X-Folk-Stream', 'yes');   // adapter pipes the body to Folk::write
-```
-
-All the Laravel behaviour carries over: multipart parts spool to temp files
-chunk by chunk and are cleaned up after the response, a per-path limit returns
-HTTP 413, and buffered/known-size responses keep working (including
-`response.after` Lua hooks).
-
-This closes #73 — streaming is now wired into every Folk framework adapter. See
-the [Streaming guide](https://folk-project.github.io/folk-releases/streaming/).
-
----
-
-### Streaming wired into the Laravel lifecycle ([#73](https://github.com/Folk-Project/folk-releases/issues/73))
-
-Earlier releases added the streaming primitives — raw body (`Folk::read`),
-multipart parsing (`Folk::nextPart`), and chunked responses (`Folk::write`) —
-but using them meant writing low-level handlers against `Folk::*`. The framework
-still saw an empty-body request and buffered every streamed response. This
-connected streaming to the **normal Laravel lifecycle**: keep using
-`$request->file()`, validation and `StreamedResponse`.
-
-**Per-path activation.** Streaming is opt-in per path, so enabling it for an
-upload route does not break normal form/JSON routes:
+**New config layout.** A connection's key is the driver name, and it nests its
+queues directly — no dangling references, no `default_connection`:
 
 ```toml
-[http]
-stream_request_body = true
-stream_request_body_paths = ["/upload", "/api/files/*"]   # "*" suffix = prefix match
+[jobs.connections.memory]
+  [jobs.connections.memory.queues.default]
+  concurrency = 4
+
+[jobs.connections.redis]
+host = "127.0.0.1"
+port = 6379
+tls = false
+key_prefix = ""
+  [jobs.connections.redis.queues.emails]
+  concurrency = 8
+  dead_letter_queue = "failed"
+
+[jobs.connections.embedded]      # persistent, requires the "embedded" build feature
+path = "var/jobs.redb"
+durability = "eventual"
+  [jobs.connections.embedded.queues.heavy]
+  concurrency = 2
 ```
 
-Paths not listed stay buffered (and keep `max_request_size` enforcement). An
-empty list keeps the previous global behaviour.
+> **Breaking change.** The old flat `[jobs]` form (`driver`, `host`, `port`,
+> `db`, `[[jobs.queues]]`) is removed. Move each queue under
+> `[jobs.connections.<driver>.queues.<name>]`. One instance per driver type
+> (two `[jobs.connections.redis]` sections is a TOML duplicate-key error).
 
-**File uploads.** On a streamed path, multipart parts are spooled to temp files
-chunk by chunk (the worker never holds the whole file in memory) and handed to
-the controller as ordinary uploads — write your route exactly as before:
+**Addressing from PHP.** A job's queue name may carry an optional connection
+prefix — `[<connection>.]<queue>` — so you can target a specific backend with a
+plain `->onQueue("redis.emails")`. A bare name resolves directly when it is
+unique across all connections; if the same name exists in more than one
+connection it is ambiguous and `jobs.push` asks for a prefix. No new contract
+field and no new `config/queue.php` key — the prefix rides inside the queue
+string, and the backend stays invisible in job code.
 
-```php
-Route::post('/profile/avatar', function (Illuminate\Http\Request $request) {
-    $request->validate([
-        'name'   => 'required|string',
-        'avatar' => 'required|image|max:10240',
-    ]);
-    return response()->json([
-        'name' => $request->input('name'),            // text field
-        'path' => $request->file('avatar')->store(),  // file part
-    ]);
-});
+**Feature-gated builds.** Default features are `["memory", "redis"]`; `embedded`
+is opt-in. A connection section whose driver is not compiled in makes the server
+**fail fast at startup** with an actionable message instead of a cryptic error.
+Select drivers per build in `folk.build.toml`:
+
+```toml
+[[plugin]]
+crate_name = "folk-plugin-jobs"
+version = "0.4"
+config_key = "jobs"
+features = ["redis", "embedded"]
 ```
 
-Temp files are deleted after the response is sent (even on exceptions). Because
-`max_request_size` is disabled on streamed paths, set a PHP-side cap in
-`config/folk.php` — exceeding it returns HTTP 413:
+**folk-builder (0.2.8).** Two changes support the above:
 
-```php
-'streaming' => [
-    'max_request_bytes' => 0,                       // 0 = unlimited
-    'limits' => ['/api/files/*' => 1073741824],     // 1 GiB on these paths
-],
-```
+* A new `features = [...]` field on `[[plugin]]` entries is forwarded to the
+  generated Cargo dependency, so a build can opt into driver features.
+* A new `folk-builder build --manifest build-manifest.toml` reads the release
+  manifest **directly** — including the per-plugin `features` table form — and
+  builds without an intermediate `folk.build.toml`. The release CI now uses this
+  instead of a Python pre-processing step, so manifest parsing lives in one
+  place (Rust) and is unit-tested. `--config folk.build.toml` still works.
 
-**Streamed responses.** Return a `StreamedResponse` / `StreamedJsonResponse` and
-the adapter pipes its output through Folk's chunked-response primitives instead
-of buffering it — ideal for CSV/NDJSON exports, SSE, and proxied streams.
+**Embedded (redb) driver.** A pure-Rust, single-file ACID queue for persistent
+jobs without an external broker — jobs survive a worker restart. Choose
+`durability = "eventual"` (fast) or `"immediate"` (fsync per commit).
 
-Also: urlencoded form bodies are now parsed into POST parameters on buffered
-routes.
+**PHP fixes.** Delayed dispatch now works end to end: Laravel
+`Bus::dispatch()->delay(...)` (and `FolkQueue::later()`) sends the delay through
+to the plugin; the Symfony/Spiral/Yii 3 `FolkQueue::push()` gained an
+`int $delay = 0` parameter. Job handlers now receive the **real** queue the job
+came from (the addressed `<connection>.<queue>`), instead of always seeing
+`default`.
 
 ### Versions
 
@@ -107,12 +89,12 @@ routes.
 | folk-ext | 0.3.10 | crates.io |
 | folk-plugin-http | 0.4.4 | crates.io |
 | folk-plugin-grpc | 0.2.7 | crates.io |
-| folk-plugin-jobs | 0.3.4 | crates.io |
+| folk-plugin-jobs | 0.4.0 | crates.io |
 | folk-plugin-metrics | 0.2.3 | crates.io |
 | folk-plugin-process | 0.2.4 | crates.io |
-| folk-builder | 0.2.7 | crates.io |
+| folk-builder | 0.2.8 | crates.io |
 | folk-sdk | 0.3.6 | packagist |
-| folk/laravel | 0.3.6 | packagist |
-| folk/spiral | 0.1.3 | packagist |
-| folk/symfony | 0.1.3 | packagist |
-| folk/yii3 | 0.1.2 | packagist |
+| folk/laravel | 0.3.7 | packagist |
+| folk/spiral | 0.1.4 | packagist |
+| folk/symfony | 0.1.4 | packagist |
+| folk/yii3 | 0.1.3 | packagist |

@@ -64,42 +64,16 @@ jobs:
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Generate folk.build.toml from manifest
-        run: |
-          python3 << 'SCRIPT'
-          import re
-
-          with open('build-manifest.toml') as f:
-              content = f.read()
-
-          plugins = re.findall(r'(folk-plugin-[\w-]+)\s*=\s*"([^"]+)"', content)
-
-          lines = ['[build]', 'output = "folk"', '']
-          for name, ver_spec in plugins:
-              ver = ver_spec.replace('.*', '')
-              key = name.replace('folk-plugin-', '')
-              lines += [
-                  '[[plugin]]',
-                  f'crate_name = "{name}"',
-                  f'version = "{ver}"',
-                  f'config_key = "{key}"',
-                  '',
-              ]
-              print(f'Plugin: {name} = "{ver}"')
-
-          with open('folk.build.toml', 'w') as f:
-              f.write('\n'.join(lines))
-          SCRIPT
-
       - name: Build folk.so
         run: |
           IMAGE="${{ env.BASE_IMAGE }}:php${{ matrix.php }}-amd64"
           docker pull "$IMAGE"
+          # folk-builder reads build-manifest.toml directly (>= 0.2.8).
           docker run --rm \
-            -v "$PWD/folk.build.toml:/build/folk.build.toml:ro" \
+            -v "$PWD/build-manifest.toml:/build/build-manifest.toml:ro" \
             -v "$PWD/out:/out" \
             "$IMAGE" \
-            sh -c "folk-builder build --config folk.build.toml --output-dir /out/"
+            sh -c "folk-builder build --manifest build-manifest.toml --output-dir /out/"
 
       - name: Package folk.so (PIE format)
         run: |
@@ -146,42 +120,16 @@ jobs:
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Generate folk.build.toml from manifest
-        run: |
-          python3 << 'SCRIPT'
-          import re
-
-          with open('build-manifest.toml') as f:
-              content = f.read()
-
-          plugins = re.findall(r'(folk-plugin-[\w-]+)\s*=\s*"([^"]+)"', content)
-
-          lines = ['[build]', 'output = "folk"', '']
-          for name, ver_spec in plugins:
-              ver = ver_spec.replace('.*', '')
-              key = name.replace('folk-plugin-', '')
-              lines += [
-                  '[[plugin]]',
-                  f'crate_name = "{name}"',
-                  f'version = "{ver}"',
-                  f'config_key = "{key}"',
-                  '',
-              ]
-              print(f'Plugin: {name} = "{ver}"')
-
-          with open('folk.build.toml', 'w') as f:
-              f.write('\n'.join(lines))
-          SCRIPT
-
       - name: Build folk.so
         run: |
           IMAGE="${{ env.BASE_IMAGE }}:php${{ matrix.php }}-arm64"
           docker pull "$IMAGE"
+          # folk-builder reads build-manifest.toml directly (>= 0.2.8).
           docker run --rm \
-            -v "$PWD/folk.build.toml:/build/folk.build.toml:ro" \
+            -v "$PWD/build-manifest.toml:/build/build-manifest.toml:ro" \
             -v "$PWD/out:/out" \
             "$IMAGE" \
-            sh -c "folk-builder build --config folk.build.toml --output-dir /out/"
+            sh -c "folk-builder build --manifest build-manifest.toml --output-dir /out/"
 
       - name: Package folk.so (PIE format)
         run: |
@@ -241,59 +189,26 @@ jobs:
       - name: Install build deps
         run: brew install protobuf llvm
 
-      - name: Parse manifest and install folk-builder
+      # Bootstrap only: which folk-builder to install. The manifest itself is
+      # parsed by folk-builder (--manifest), not here.
+      - name: Resolve folk-builder version from manifest
         id: manifest
         run: |
-          python3 << 'SCRIPT'
-          import re, os, subprocess
-
-          def resolve_latest(crate, ver_spec):
-              if '*' not in ver_spec and ver_spec.count('.') == 2:
-                  return ver_spec
-              prefix = ver_spec.replace('.*', '').replace('*', '')
-              out = subprocess.check_output(
-                  ['cargo', 'search', crate, '--limit=1'], text=True
-              )
-              m = re.search(rf'{re.escape(crate)}\s*=\s*"([^"]+)"', out)
-              if m and m.group(1).startswith(prefix):
-                  return m.group(1)
-              return prefix + '.0'
-
-          with open('build-manifest.toml') as f:
-              content = f.read()
-
-          m = re.search(r'\[builder\]\s*\nversion\s*=\s*"([^"]+)"', content)
-          builder_spec = m.group(1) if m else '0.2.*'
-          builder_ver = resolve_latest('folk-builder', builder_spec)
-          print(f'Builder: folk-builder@{builder_ver}')
-
-          plugins = re.findall(r'(folk-plugin-[\w-]+)\s*=\s*"([^"]+)"', content)
-
-          lines = ['[build]', 'output = "folk"', '']
-          for name, ver_spec in plugins:
-              ver = resolve_latest(name, ver_spec)
-              key = name.replace('folk-plugin-', '')
-              lines += [
-                  '[[plugin]]',
-                  f'crate_name = "{name}"',
-                  f'version = "{ver}"',
-                  f'config_key = "{key}"',
-                  '',
-              ]
-              print(f'Plugin: {name}@{ver}')
-
-          with open('folk.build.toml', 'w') as f:
-              f.write('\n'.join(lines))
-
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f'builder_version={builder_ver}\n')
-          SCRIPT
+          spec=$(awk -F'"' '/^\[builder\]/{f=1;next} /^\[/{f=0} f&&/version/{print $2;exit}' build-manifest.toml)
+          spec="${spec:-0.2.*}"
+          # "0.2.*" -> "0.2" (cargo reads it as ^0.2); exact "x.y.z" is kept.
+          case "$spec" in
+            *\*) req="${spec%.*}" ;;
+            *)   req="$spec" ;;
+          esac
+          echo "builder_req=${req}" >> "$GITHUB_OUTPUT"
+          echo "folk-builder requirement: ${req}"
 
       - name: Install folk-builder
-        run: cargo install folk-builder@${{ steps.manifest.outputs.builder_version }}
+        run: cargo install folk-builder --version "${{ steps.manifest.outputs.builder_req }}"
 
       - name: Build folk.so
-        run: folk-builder build --config folk.build.toml --output-dir .
+        run: folk-builder build --manifest build-manifest.toml --output-dir .
 
       - name: Package folk.dylib (PIE format)
         run: |

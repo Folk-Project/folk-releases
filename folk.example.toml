@@ -113,38 +113,43 @@ write_timeout = "30s"
 # -----------------------------------------------------------------------------
 # Jobs Plugin
 # -----------------------------------------------------------------------------
-[jobs]
+# Each driver is a connection that nests its own queues. The connection key IS
+# the driver name (one instance per driver type). Default-compiled drivers:
+# "memory" and "redis"; "embedded" (redb) is opt-in at build time.
 
-# Queue driver: "memory" or "redis".
-driver = "memory"
+# In-memory driver — the section only declares queues.
+[jobs.connections.memory]
+  [jobs.connections.memory.queues.default]
+  concurrency = 4            # Concurrent workers for this queue
+  max_retries = 3            # Retries before DLQ or discard
+  retry_delay = "1s"         # Base delay between retries
+  retry_backoff = "exponential"  # "exponential", "linear", or "fixed"
+  job_timeout = "60s"        # Max execution time ("0s" = unlimited)
+  # dead_letter_queue = "failed"  # Queue for failed jobs (omit to discard)
+  priority = 10              # Lower = higher priority
 
-# Redis connection (used when driver = "redis").
-host = "127.0.0.1"
-port = 6379
-password = ""
-db = 0
+# Redis driver. Address jobs as "redis.<queue>" from PHP, or use a bare name
+# when it is unique across connections.
+# [jobs.connections.redis]
+# host = "127.0.0.1"
+# port = 6379
+# password = ""
+# db = 0
+# tls = false
+# key_prefix = ""
+#   [jobs.connections.redis.queues.critical]
+#   concurrency = 8
+#   max_retries = 5
+#   retry_delay = "500ms"
+#   dead_letter_queue = "failed"
+#   priority = 1
 
-# Queue definitions. At least one queue is required.
-[[jobs.queues]]
-name = "default"
-concurrency = 4            # Concurrent workers for this queue
-max_retries = 3            # Retries before DLQ or discard
-retry_delay = "1s"         # Base delay between retries
-retry_backoff = "exponential"  # "exponential", "linear", or "fixed"
-job_timeout = "60s"        # Max execution time ("0s" = unlimited)
-# dead_letter_queue = "failed"  # Queue for failed jobs (omit to discard)
-priority = 10              # Lower = higher priority
-
-# Example: high-priority queue with DLQ.
-# [[jobs.queues]]
-# name = "critical"
-# concurrency = 8
-# max_retries = 5
-# retry_delay = "500ms"
-# retry_backoff = "exponential"
-# job_timeout = "30s"
-# dead_letter_queue = "failed"
-# priority = 1
+# Embedded (redb) driver — persistent, requires the "embedded" build feature.
+# [jobs.connections.embedded]
+# path = "var/jobs.redb"
+# durability = "eventual"    # or "immediate" (fsync per commit)
+#   [jobs.connections.embedded.queues.heavy]
+#   concurrency = 2
 
 # -----------------------------------------------------------------------------
 # gRPC Plugin
