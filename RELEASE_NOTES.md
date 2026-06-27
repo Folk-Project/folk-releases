@@ -141,7 +141,7 @@ consistent with Folk's `request_id`) via a new `Folk\Sdk\Uuid` helper.
 | folk-plugin-process | 0.2.4 | crates.io |
 | folk-builder | 0.2.8 | crates.io |
 | folk-sdk | 0.3.7 | packagist |
-| folk/laravel | 0.3.8 | packagist |
+| folk/laravel | 0.3.9 | packagist |
 | folk/spiral | 0.1.6 | packagist |
 | folk/symfony | 0.1.6 | packagist |
 | folk/yii3 | 0.1.5 | packagist |
