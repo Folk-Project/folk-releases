@@ -196,9 +196,10 @@ jobs:
         run: |
           spec=$(awk -F'"' '/^\[builder\]/{f=1;next} /^\[/{f=0} f&&/version/{print $2;exit}' build-manifest.toml)
           spec="${spec:-0.2.*}"
-          # "0.2.*" -> "0.2" (cargo reads it as ^0.2); exact "x.y.z" is kept.
+          # "0.2.*" -> "^0.2" (cargo requires an explicit qualifier for a range);
+          # exact "x.y.z" is kept verbatim.
           case "$spec" in
-            *\*) req="${spec%.*}" ;;
+            *\*) req="^${spec%.*}" ;;
             *)   req="$spec" ;;
           esac
           echo "builder_req=${req}" >> "$GITHUB_OUTPUT"
