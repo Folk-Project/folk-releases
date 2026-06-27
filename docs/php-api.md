@@ -101,6 +101,21 @@ Parts are processed **sequentially**: read (or skip) the current part before cal
 
 ---
 
+## UUID helper (`\Folk\Sdk\Uuid`)
+
+Dependency-free UUID generation, used by the framework queue adapters to stamp
+job/message ids consistently with Folk's `request_id`.
+
+### `Uuid::v7(): string`
+
+A time-ordered RFC 9562 version 7 UUID (preferred — sorts by creation time).
+
+### `Uuid::v4(): string`
+
+A random RFC 4122 version 4 UUID.
+
+---
+
 ## Native functions
 
 ### `folk_version(): string`
