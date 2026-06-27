@@ -4,7 +4,8 @@ Background job processing with in-memory or Redis-backed queues.
 
 ## Features
 
-- In-memory and Redis drivers
+- Three drivers: **memory**, **Redis**, and **embedded** (persistent, pure-Rust redb)
+- Feature-gated builds — a build only pulls in the drivers it uses
 - Multiple named queues with independent concurrency
 - Configurable retry: delay, backoff strategy (exponential / linear / fixed)
 - Job execution timeout
@@ -17,42 +18,59 @@ Background job processing with in-memory or Redis-backed queues.
 
 ## Configuration
 
-```toml
-[jobs]
-driver = "memory"       # "memory" or "redis"
+Each backend (driver) is declared as a **connection** that nests its own
+queues. The connection key **is** the driver name, so there is one instance per
+driver type (two `[jobs.connections.redis]` sections is a TOML duplicate-key
+error). Different drivers can run side by side.
 
-# Redis connection (used when driver = "redis")
+```toml
+# In-memory driver — no persistence. The section just declares queues.
+[jobs.connections.memory]
+  [jobs.connections.memory.queues.default]
+  concurrency = 4                  # Concurrent consumers for this queue
+  max_retries = 3                  # Retries before DLQ or discard
+  retry_delay = "1s"               # Base delay between retries
+  retry_backoff = "exponential"    # "exponential", "linear", or "fixed"
+  job_timeout = "60s"              # Max execution time per job ("0s" = unlimited)
+  dead_letter_queue = "failed"     # Queue for failed jobs (omit to discard)
+  priority = 10                    # Lower = higher priority
+
+# Redis driver (production).
+[jobs.connections.redis]
 host = "127.0.0.1"
 port = 6379
+username = ""                      # Redis ACL username (optional)
 password = ""
 db = 0
+tls = false                        # true → rediss:// scheme
+key_prefix = ""                    # Prefix applied to all queue keys
+pool_size = 8
+connect_timeout = "5s"
+command_timeout = "5s"
+url = ""                           # Full URL override; non-empty wins over the fields above
+  [jobs.connections.redis.queues.emails]
+  concurrency = 8
+  dead_letter_queue = "failed"
 
-[[jobs.queues]]
-name = "default"
-concurrency = 4                    # Concurrent workers for this queue
-max_retries = 3                    # Max retry attempts before DLQ/discard
-retry_delay = "1s"                 # Base delay between retries
-retry_backoff = "exponential"      # "exponential", "linear", or "fixed"
-job_timeout = "60s"                # Max execution time per job ("0s" = no limit)
-dead_letter_queue = "failed"       # Queue for failed jobs (omit to discard)
-priority = 10                      # Lower = higher priority
-
-[[jobs.queues]]
-name = "critical"
-concurrency = 8
-max_retries = 5
-retry_delay = "500ms"
-retry_backoff = "exponential"
-job_timeout = "30s"
-dead_letter_queue = "failed"
-priority = 1
+# Embedded driver (redb) — pure-Rust persistent ACID queue, single file.
+# Requires the "embedded" build feature.
+[jobs.connections.embedded]
+path = "var/jobs.redb"
+durability = "eventual"            # "eventual" (fast) or "immediate" (fsync per commit)
+  [jobs.connections.embedded.queues.heavy]
+  concurrency = 2
 ```
+
+> **Migrated from a flat `[jobs]`?** The old form (`driver`, `host`, `port`,
+> `db`, `[[jobs.queues]]`) was removed — move each queue under
+> `[jobs.connections.<driver>.queues.<name>]`.
 
 ### Queue options reference
 
+A queue's name is its map key (`...queues.<name>`), not a field.
+
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `name` | string | `"default"` | Queue name |
 | `concurrency` | int | `4` | Number of concurrent consumers |
 | `max_retries` | int | `3` | Retries before DLQ or discard |
 | `retry_delay` | duration | `"1s"` | Base delay between retries |
@@ -69,21 +87,37 @@ priority = 1
 | `linear` | base × (attempt+1) | 1s, 2s, 3s, 4s, 5s |
 | `fixed` | base | 1s, 1s, 1s, 1s, 1s |
 
-### Connection config
+### Redis connection fields
 
-| Field | Default | Redis meaning |
-|-------|---------|---------------|
-| `host` | `"127.0.0.1"` | Redis host |
-| `port` | `6379` | Redis port |
-| `password` | `""` | AUTH password |
-| `db` | `0` | Database number (0-15) |
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `host` / `port` | `127.0.0.1` / `6379` | Redis endpoint |
+| `username` / `password` | `""` | ACL username / AUTH password |
+| `db` | `0` | Database number (0–15) |
+| `tls` | `false` | `true` → `rediss://` |
+| `key_prefix` | `""` | Prefix for all queue keys |
+| `pool_size` | `8` | Connection pool size |
+| `connect_timeout` / `command_timeout` | `"5s"` | Timeouts |
+| `url` | `""` | Full URL override (wins over the fields above) |
+
+The `memory` connection takes no fields (queues only); the `embedded`
+connection takes `path` and `durability`.
 
 ## Drivers
 
-| Driver | Persistence | Use case |
-|--------|-------------|----------|
-| `memory` | No — lost on restart | Development, testing |
-| `redis` | Yes | Production |
+| Driver | Build feature | Persistence | Use case |
+|--------|---------------|-------------|----------|
+| `memory` | always on | No — lost on restart | Development, testing |
+| `redis` | `redis` (default) | Yes | Production |
+| `embedded` (redb) | `embedded` (opt-in) | Yes — single file, ACID | Persistent jobs without an external broker |
+
+Drivers are compiled into the build via `folk.build.toml` (default features are
+`["memory", "redis"]`; add `"embedded"` to `features`). A connection whose
+driver is not compiled in makes the server **fail fast at startup** with an
+actionable message.
+
+> Broker-backed drivers (RabbitMQ, Kafka, NATS, SQS, Pub/Sub, Beanstalk) are on
+> the roadmap and not yet shipped.
 
 ## Delayed jobs
 
@@ -120,7 +154,7 @@ transport/driver". The queue name may carry an optional connection prefix —
 `[<connection>.]<queue>` — to target a specific backend; the backend stays
 invisible in job code.
 
-### Laravel (`folk/laravel`)
+### Laravel
 
 The service provider registers a `folk` queue connection. Use the standard
 `dispatch()` helper:
@@ -128,12 +162,12 @@ The service provider registers a `folk` queue connection. Use the standard
 ```php
 TestJob::dispatch('hello');                  // default queue
 TestJob::dispatch('hello')->onQueue('redis.emails');
-TestJob::dispatch('hello')->delay(30);       // requires folk/laravel >= 0.3.0
+TestJob::dispatch('hello')->delay(30);       // delayed
 ```
 
 Requires `QUEUE_CONNECTION=folk` in `.env`.
 
-### Symfony (`folk/symfony` >= 0.1.5)
+### Symfony
 
 Folk is a Messenger **transport**. Register the factory and route messages to a
 `folk://<connection>.<queue>` DSN:
@@ -169,7 +203,7 @@ $bus->dispatch(new SendEmail(...), [new DelayStamp(30000)]); // 30s delay
 Consumption is driven by Folk (no `messenger:consume` loop): the worker hands
 the message back into the bus, where your `#[AsMessageHandler]` runs.
 
-### Spiral (`folk/spiral` >= 0.1.5)
+### Spiral
 
 Folk is a `Spiral\Queue\QueueInterface` driver. Register it as a queue
 connection (a bootloader binding is overridden by Spiral's queue injector):
@@ -196,7 +230,7 @@ $queue->push(SendEmail::class, ['to' => $addr], Options::onQueue('redis.emails')
 Consumption resolves the handler through Spiral's `HandlerRegistryInterface`
 (`HandlerInterface::handle($name, $id, $payload)`).
 
-### Yii 3 (`folk/yii3` >= 0.1.4)
+### Yii 3
 
 Folk is a `yiisoft/queue` `AdapterInterface`. Bind it as the queue adapter and
 map the message type to a handler:
