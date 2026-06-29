@@ -1,5 +1,36 @@
 ### What's new
 
+Core dispatch refactor & cleanup
+([#78](https://github.com/Folk-Project/folk-releases/issues/78)).
+
+The worker pool now feeds every worker from a single shared work-queue: an idle
+worker pulls the next request itself, instead of the old fixed round-robin that
+could pin a request behind a busy worker while another sat idle. This removes
+head-of-line blocking under uneven load. The separate concurrency semaphore and
+per-worker inbox buffers are gone — concurrency is bounded by `workers.count`.
+
+`workers.exec_timeout` is now documented as a **soft** deadline: on expiry the
+client receives an error, but because all workers are threads in one process the
+PHP thread cannot be force-killed — it runs to completion and the other workers
+keep serving. True force-recovery and per-worker memory recycling
+(`max_memory_mb`) require a process-isolation model and are tracked as a separate
+research effort.
+
+Internal cleanup (no user-facing behaviour change): removed a dead pre-phase-23
+`recv`/`send` worker path, and two config knobs that never did anything —
+`[server] rpc_socket` (no admin socket was ever bound) and
+`[workers] max_concurrent_per_worker` (always clamped to 1). **Existing
+`folk.toml` files keep working** — unknown keys are ignored, so leftover
+`rpc_socket` / `max_concurrent_per_worker` lines are simply skipped; you may
+delete them.
+
+Versions: folk-api 0.2.12, folk-core / folk-ext 0.3.11, folk-builder 0.2.9. The
+jobs / grpc / metrics / process / http plugins are unchanged.
+
+---
+
+### Previously
+
 Managed-broker jobs drivers — RabbitMQ, AWS SQS, NATS/JetStream, beanstalkd,
 Apache Kafka and Google Cloud Pub/Sub ([#39](https://github.com/Folk-Project/folk-releases/issues/39)–[#44](https://github.com/Folk-Project/folk-releases/issues/44)).
 
