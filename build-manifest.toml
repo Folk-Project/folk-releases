@@ -13,10 +13,10 @@
 # Table-form entries MUST come after all string-form entries (TOML rule).
 
 [release]
-version = "0.1.17"
+version = "0.1.18"
 
 [builder]
-version = "0.2.*"
+version = "0.2.9"
 
 [plugins]
 folk-plugin-http = "0.4.*"
