@@ -114,9 +114,13 @@ h2c = false                            # HTTP/2 cleartext (without TLS)
 # error). Different drivers run side by side.
 #
 # Drivers must be compiled into the build: default features are
-# ["memory", "redis"]; "embedded" (redb) is opt-in via folk.build.toml
-# (features = ["embedded"]). A connection section whose driver is not compiled
-# in makes the server fail fast at startup with an actionable message.
+# ["memory", "redis"]; every other driver is opt-in via folk.build.toml
+# features — "embedded" (redb) and the managed brokers "rabbitmq", "sqs",
+# "nats", "beanstalk", "kafka", "pubsub". A connection section whose driver is
+# not compiled in makes the server fail fast at startup with an actionable
+# message. Broker drivers hold each message in-flight until the job succeeds
+# (ack) or terminally fails (nack → broker DLX/redelivery), so a crashed worker
+# re-delivers (at-least-once); memory/redis/embedded remain at-most-once.
 
 # In-memory driver — no persistence. The section only declares queues.
 [jobs.connections.memory]
@@ -153,6 +157,84 @@ h2c = false                            # HTTP/2 cleartext (without TLS)
 # durability = "eventual"              # "eventual" (fast) or "immediate" (fsync per commit)
 #   [jobs.connections.embedded.queues.heavy]
 #   concurrency = 2
+
+# --- Managed-broker drivers (each requires its Cargo feature) ---
+
+# RabbitMQ (AMQP 0-9-1). Feature: "rabbitmq". Manual ack/nack + prefetch.
+# [jobs.connections.rabbitmq]
+# host = "127.0.0.1"
+# port = 5672
+# vhost = "/"
+# username = "guest"
+# password = "guest"
+# tls = false                          # true → amqps:// scheme
+# prefetch = 10                        # Max unacked messages per consumer (QoS)
+# dead_letter_exchange = ""            # x-dead-letter-exchange for nack'd jobs (empty = none)
+# url = ""                             # Full amqp:// URL override; non-empty wins
+#   [jobs.connections.rabbitmq.queues.emails]
+#   concurrency = 8
+# Note: delay is implemented via a deferred publish (no native delay); lost if
+# the server crashes inside the delay window.
+
+# AWS SQS. Feature: "sqs". Standard + FIFO (*.fifo) queues.
+# [jobs.connections.sqs]
+# region = "us-east-1"
+# endpoint = ""                        # Override for LocalStack, e.g. http://localstack:4566
+# access_key_id = ""                   # Empty → default AWS provider chain (env/profile/IAM)
+# secret_access_key = ""
+# visibility_timeout = 60              # Seconds a received message stays invisible
+# wait_time_seconds = 20               # Long-poll wait (0–20)
+#   [jobs.connections.sqs.queues.default]
+#   concurrency = 4
+# Note: native delay (DelaySeconds) is capped at 900s; terminal nack deletes the
+# message — for native dead-lettering configure a redrive policy.
+
+# NATS / JetStream. Feature: "nats". Durable pull consumers with ack.
+# [jobs.connections.nats]
+# url = "nats://127.0.0.1:4222"
+# username = ""
+# password = ""
+# token = ""
+# stream = "folk"                      # JetStream stream capturing "<stream>.<queue>" subjects
+# max_deliver = 3                      # Attempts before the message is terminated
+# ack_wait_secs = 60                   # Redelivery window if not acked
+#   [jobs.connections.nats.queues.events]
+#   concurrency = 4
+
+# beanstalkd. Feature: "beanstalk". A queue name maps to a tube.
+# [jobs.connections.beanstalk]
+# host = "127.0.0.1"
+# port = 11300
+# ttr_secs = 60                        # time-to-run (visibility timeout)
+# priority = 1024                      # Job priority (lower = higher)
+#   [jobs.connections.beanstalk.queues.default]
+#   concurrency = 4
+# Note: native delay + priority; terminal failure buries the job for inspection.
+
+# Apache Kafka. Feature: "kafka". A queue name maps to a topic; consumer group
+# with manual offset commit (at-least-once).
+# [jobs.connections.kafka]
+# brokers = "localhost:9092"           # Comma-separated bootstrap servers
+# group_id = "folk"
+# security_protocol = ""               # e.g. "SASL_SSL" (empty = PLAINTEXT)
+# sasl_mechanism = ""                  # e.g. "PLAIN"
+# sasl_username = ""
+# sasl_password = ""
+#   [jobs.connections.kafka.queues.events]
+#   concurrency = 4
+# Note: depth is not reported (0); delay via deferred publish.
+
+# Google Cloud Pub/Sub. Feature: "pubsub". A queue maps to a topic; the pull
+# subscription is "<queue><subscription_suffix>".
+# [jobs.connections.pubsub]
+# project_id = "my-project"
+# endpoint = ""                        # Emulator host, e.g. 127.0.0.1:8085 (empty = real Pub/Sub via ADC)
+# credentials_file = ""                # Service-account JSON path (empty = ADC)
+# subscription_suffix = "-folk"
+# ack_deadline_secs = 60
+#   [jobs.connections.pubsub.queues.events]
+#   concurrency = 4
+# Note: depth is not reported (0); delay via deferred publish.
 
 # Addressing from PHP: a job's queue name may carry an optional connection
 # prefix — "[<connection>.]<queue>" (e.g. ->onQueue("redis.emails")). A bare

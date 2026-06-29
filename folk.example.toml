@@ -115,7 +115,10 @@ write_timeout = "30s"
 # -----------------------------------------------------------------------------
 # Each driver is a connection that nests its own queues. The connection key IS
 # the driver name (one instance per driver type). Default-compiled drivers:
-# "memory" and "redis"; "embedded" (redb) is opt-in at build time.
+# "memory" and "redis". Opt-in at build time via folk.build.toml features:
+# "embedded" (redb) and the managed brokers "rabbitmq", "sqs", "nats",
+# "beanstalk", "kafka", "pubsub". See reference.md for every broker field;
+# broker drivers ack/nack each message (at-least-once on worker crash).
 
 # In-memory driver — the section only declares queues.
 [jobs.connections.memory]
@@ -150,6 +153,38 @@ write_timeout = "30s"
 # durability = "eventual"    # or "immediate" (fsync per commit)
 #   [jobs.connections.embedded.queues.heavy]
 #   concurrency = 2
+
+# Managed brokers (each requires its build feature — see reference.md for all
+# fields). Examples:
+# [jobs.connections.rabbitmq]   # feature "rabbitmq"
+# url = "amqp://guest:guest@127.0.0.1:5672/%2f"
+# prefetch = 10
+#   [jobs.connections.rabbitmq.queues.emails]
+#   concurrency = 8
+#
+# [jobs.connections.sqs]        # feature "sqs"; standard + *.fifo queues
+# region = "us-east-1"
+# endpoint = ""                 # http://localstack:4566 for LocalStack
+#   [jobs.connections.sqs.queues.default]
+#
+# [jobs.connections.nats]       # feature "nats" (JetStream)
+# url = "nats://127.0.0.1:4222"
+#   [jobs.connections.nats.queues.events]
+#
+# [jobs.connections.beanstalk]  # feature "beanstalk" (tube = queue)
+# host = "127.0.0.1"
+# port = 11300
+#   [jobs.connections.beanstalk.queues.default]
+#
+# [jobs.connections.kafka]      # feature "kafka" (topic = queue, consumer group)
+# brokers = "localhost:9092"
+# group_id = "folk"
+#   [jobs.connections.kafka.queues.events]
+#
+# [jobs.connections.pubsub]     # feature "pubsub"
+# project_id = "my-project"
+# endpoint = ""                 # emulator host:port; empty = real Pub/Sub
+#   [jobs.connections.pubsub.queues.events]
 
 # -----------------------------------------------------------------------------
 # gRPC Plugin
