@@ -25,5 +25,5 @@ folk-plugin-metrics = "0.2.*"
 folk-plugin-process = "0.2.*"
 
 [plugins.folk-plugin-jobs]
-version = "0.4.*"
+version = "0.5.*"
 features = ["redis", "embedded"]
