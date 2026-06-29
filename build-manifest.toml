@@ -26,4 +26,6 @@ folk-plugin-process = "0.2.*"
 
 [plugins.folk-plugin-jobs]
 version = "0.5.*"
-features = ["redis", "embedded"]
+# All drivers compiled into the prebuilt .so. Managed-broker drivers pull heavy
+# native deps (rdkafka/openssl/sasl) — Dockerfile.base installs them.
+features = ["redis", "embedded", "rabbitmq", "sqs", "nats", "beanstalk", "kafka", "pubsub"]

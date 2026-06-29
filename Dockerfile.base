@@ -6,9 +6,13 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --default-toolchain 1.88.0
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Install build dependencies
+# Install build dependencies.
+# Base set: pkg-config/clang/protobuf. The rest are required by the managed-broker
+# jobs drivers compiled into the prebuilt .so (kafka/rdkafka needs cmake +
+# build-essential + libsasl2/zlib/zstd; sqs/pubsub/nats pull TLS via libssl/curl).
 RUN apt-get update && apt-get install -y \
     pkg-config libclang-dev clang protobuf-compiler \
+    cmake build-essential libssl-dev zlib1g-dev libzstd-dev libsasl2-dev libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install folk-builder
