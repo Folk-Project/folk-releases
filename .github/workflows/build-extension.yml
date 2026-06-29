@@ -187,7 +187,11 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Install build deps
-        run: brew install protobuf llvm
+        # protobuf/llvm for the base build; cmake + openssl/zstd/sasl are needed
+        # to compile the managed-broker jobs drivers (rdkafka builds bundled
+        # librdkafka from source; sqs/pubsub/nats TLS). Mirrors the apt deps in
+        # Dockerfile.base for the Linux builds.
+        run: brew install protobuf llvm cmake openssl@3 zstd
 
       # Bootstrap only: which folk-builder to install. The manifest itself is
       # parsed by folk-builder (--manifest), not here.
