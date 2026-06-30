@@ -1,5 +1,7 @@
+# Phase 79: fork-after-warm runs on NTS PHP (no ZTS). The .so is built and loaded
+# against the non-thread-safe build.
 ARG PHP_VERSION=8.4
-FROM php:${PHP_VERSION}-zts
+FROM php:${PHP_VERSION}
 
 # Install Rust via rustup
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
@@ -16,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install folk-builder
-ARG BUILDER_VERSION=0.2.9
+ARG BUILDER_VERSION=0.2.10
 RUN cargo install folk-builder@${BUILDER_VERSION}
 
 WORKDIR /build

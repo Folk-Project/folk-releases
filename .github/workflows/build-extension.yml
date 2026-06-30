@@ -84,7 +84,7 @@ jobs:
             exit 1
           fi
 
-          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-x86_64-linux-glibc-zts"
+          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-x86_64-linux-glibc-nts"
 
           mkdir -p dist
           cp "$SO_FILE" "dist/folk.so"
@@ -140,7 +140,7 @@ jobs:
             exit 1
           fi
 
-          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-arm64-linux-glibc-zts"
+          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-arm64-linux-glibc-nts"
 
           mkdir -p dist
           cp "$SO_FILE" "dist/folk.so"
@@ -173,13 +173,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install PHP (ZTS)
+      - name: Install PHP (NTS)
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           extensions: none
         env:
-          phpts: zts
+          phpts: nts
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -224,7 +224,7 @@ jobs:
             exit 1
           fi
 
-          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-arm64-darwin-bsdlibc-zts"
+          PIE_NAME="php_folk-${VERSION}_php${{ matrix.php }}-arm64-darwin-bsdlibc-nts"
 
           mkdir -p dist
           cp "$SO_FILE" "dist/folk.dylib"
@@ -298,11 +298,11 @@ jobs:
             echo "| PHP | Platform | File |"
             echo "|-----|----------|------|"
             for php in 8.2 8.3 8.4 8.5; do
-              echo "| ${php} | Linux x86_64 | \`php_folk-${VERSION}_php${php}-x86_64-linux-glibc-zts.zip\` |"
-              echo "| ${php} | Linux ARM64 | \`php_folk-${VERSION}_php${php}-arm64-linux-glibc-zts.zip\` |"
+              echo "| ${php} | Linux x86_64 | \`php_folk-${VERSION}_php${php}-x86_64-linux-glibc-nts.zip\` |"
+              echo "| ${php} | Linux ARM64 | \`php_folk-${VERSION}_php${php}-arm64-linux-glibc-nts.zip\` |"
             done
             for php in 8.2 8.3 8.4 8.5; do
-              echo "| ${php} | macOS ARM64 | \`php_folk-${VERSION}_php${php}-arm64-darwin-bsdlibc-zts.zip\` |"
+              echo "| ${php} | macOS ARM64 | \`php_folk-${VERSION}_php${php}-arm64-darwin-bsdlibc-nts.zip\` |"
             done
             echo 'RELEASE_EOF'
           } >> "$GITHUB_OUTPUT"
