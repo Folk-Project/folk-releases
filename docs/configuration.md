@@ -28,10 +28,11 @@ shutdown_timeout = "30s"          # Graceful shutdown timeout
 [workers]
 script = "vendor/bin/folk-worker"  # PHP worker script
 php = "php"                        # PHP binary path
-count = 4                          # Worker threads (>1 requires ZTS)
+count = 4                          # Worker processes the master forks (NTS)
 max_jobs = 1000                    # Recycle after N requests (0 = never)
 ttl = "3600s"                      # Recycle after this lifetime
-exec_timeout = "30s"               # Per-request timeout
+exec_timeout = "30s"               # Per-request HARD deadline (watchdog kills + respawns)
+max_memory_mb = 256                # Recycle a worker over this RSS (omit = disabled)
 boot_timeout = "30s"               # Worker boot timeout
 warmup = true                      # Opcache warmup before worker spawn
 ```

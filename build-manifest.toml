@@ -12,20 +12,24 @@
 #                   features = ["redis", "embedded"]
 # Table-form entries MUST come after all string-form entries (TOML rule).
 
+# Phase 79 (fork-after-warm, folk-api 0.3 breaking major): the .so is built
+# against PHP **NTS** (Dockerfile.base: php:8.x, not -zts). Every plugin bumps a
+# major because it depends on the new folk-api 0.3 plugin contract. Exact patch
+# versions are finalized at publish; these are the breaking-major targets.
 [release]
-version = "0.1.18"
+version = "0.2.0"
 
 [builder]
-version = "0.2.9"
+version = "0.2.10"
 
 [plugins]
-folk-plugin-http = "0.4.*"
-folk-plugin-grpc = "0.2.*"
-folk-plugin-metrics = "0.2.*"
-folk-plugin-process = "0.2.*"
+folk-plugin-http = "0.5.*"
+folk-plugin-grpc = "0.3.*"
+folk-plugin-metrics = "0.3.*"
+folk-plugin-process = "0.3.*"
 
 [plugins.folk-plugin-jobs]
-version = "0.5.*"
+version = "0.6.*"
 # All drivers compiled into the prebuilt .so. Managed-broker drivers pull heavy
 # native deps (rdkafka/openssl/sasl) — Dockerfile.base installs them.
 features = ["redis", "embedded", "rabbitmq", "sqs", "nats", "beanstalk", "kafka", "pubsub"]

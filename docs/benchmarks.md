@@ -44,5 +44,5 @@ Full Laravel welcome page render.
 - All tests use the same hardware and Docker resource limits
 - `wrk` runs from the host machine against the Docker container
 - Each test runs for 30 seconds after a warm-up period
-- Folk uses ZTS mode with 4 worker threads
+- Folk uses 4 forked worker processes (NTS); figures above predate the fork model and will be refreshed
 - Swoole, RoadRunner, and FrankenPHP use their default recommended configurations with 4 workers

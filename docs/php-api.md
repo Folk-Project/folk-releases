@@ -136,13 +136,10 @@ $id = folk_request_id();
 
 ### `folk_is_worker_thread(): bool`
 
-Returns `true` when called from a Folk ZTS worker thread. Returns `false` from the CLI or from code running outside the worker context (e.g., bootstrap, migrations).
-
-```php
-if (folk_is_worker_thread()) {
-    // register request-scoped resources
-}
-```
+**Obsolete (phase 79).** Folk no longer uses worker threads — workers are
+forked processes, and the framework is bootstrapped once in the master before
+the fork. The function remains for backward compatibility but is no longer a
+meaningful branch; new code should not depend on it.
 
 ### `folk_call(string $method, string $payload): string`
 

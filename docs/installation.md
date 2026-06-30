@@ -2,7 +2,8 @@
 
 ## Requirements
 
-- PHP 8.2+ with **ZTS** (Zend Thread Safety) for multi-worker mode
+- PHP 8.2+ (**NTS** — non-thread-safe; ZTS is no longer required). Folk forks
+  worker processes, so multi-worker needs no thread safety.
 - Linux x86_64/aarch64 or macOS Apple Silicon
 
 ## Via PIE (recommended)
@@ -18,7 +19,7 @@ PIE will automatically download a pre-built binary for your platform. No Rust to
 ## Via Docker
 
 ```dockerfile
-FROM php:8.4-zts
+FROM php:8.4
 
 RUN apt-get update && apt-get install -y unzip curl \
     && rm -rf /var/lib/apt/lists/*

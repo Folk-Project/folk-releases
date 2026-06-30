@@ -18,7 +18,7 @@ Folk replaces nginx + php-fpm with a single binary that handles HTTP, gRPC, back
 
 ## Quick Start
 
-**1. Install the extension** (requires PHP 8.2+ ZTS) — see [Installation](https://folk-project.github.io/folk-releases/installation/) for Docker and from-source:
+**1. Install the extension** (requires PHP 8.2+, NTS) — see [Installation](https://folk-project.github.io/folk-releases/installation/) for Docker and from-source:
 
 ```bash
 pie install folk-project/ext-folk
@@ -56,7 +56,7 @@ listen = "0.0.0.0:8080"
 php vendor/bin/folk-worker   # or the framework's bin/folk-server
 ```
 
-Your app is now serving HTTP on port 8080 across 4 worker threads.
+Your app is now serving HTTP on port 8080 across 4 worker processes.
 
 ## Downloads
 

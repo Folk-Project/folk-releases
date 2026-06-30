@@ -60,7 +60,7 @@ Uploaded files should be byte-identical to the originals.
 ## Environment
 
 - Folk 0.2.6
-- PHP 8.3.12 ZTS
+- PHP 8.3.12 (NTS)
 - Ubuntu 24.04
 - Laravel 11
 ```

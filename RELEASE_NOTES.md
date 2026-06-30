@@ -1,115 +1,47 @@
 ### What's new
 
-Core dispatch refactor & cleanup
-([#78](https://github.com/Folk-Project/folk-releases/issues/78)).
+Runtime model: fork-after-warm worker processes (threads → processes)
+([#1](https://github.com/Folk-Project/folk-releases/issues/1),
+[#3](https://github.com/Folk-Project/folk-releases/issues/3)).
 
-The worker pool now feeds every worker from a single shared work-queue: an idle
-worker pulls the next request itself, instead of the old fixed round-robin that
-could pin a request behind a busy worker while another sat idle. This removes
-head-of-line blocking under uneven load. The separate concurrency semaphore and
-per-worker inbox buffers are gone — concurrency is bounded by `workers.count`.
+Folk no longer runs its workers as threads inside one PHP process. A
+single-threaded **master** boots PHP and your framework once, then `fork()`s N
+**worker processes**; each worker runs its own event loop and handles requests
+in its own process, while the master only supervises. This is the model Swoole
+and php-fpm use, and it unlocks three things the thread model never could:
 
-`workers.exec_timeout` is now documented as a **soft** deadline: on expiry the
-client receives an error, but because all workers are threads in one process the
-PHP thread cannot be force-killed — it runs to completion and the other workers
-keep serving. True force-recovery and per-worker memory recycling
-(`max_memory_mb`) require a process-isolation model and are tracked as a separate
-research effort.
+- **Crash isolation.** A segfault or fatal in one worker no longer takes down
+  the whole server — the master respawns it (typically < 0.5 s) while the other
+  workers keep serving.
+- **Force-kill of a stuck request (`exec_timeout` is now a HARD deadline).** A
+  per-worker watchdog kills a worker whose request overruns `exec_timeout` and
+  the master respawns it. (Previously the deadline was soft — a wedged PHP thread
+  could not be reclaimed.)
+- **Per-worker memory recycling (`max_memory_mb`).** The master samples each
+  worker's RSS and gracefully recycles any that grows past the limit.
 
-Internal cleanup (no user-facing behaviour change): removed a dead pre-phase-23
-`recv`/`send` worker path, and two config knobs that never did anything —
-`[server] rpc_socket` (no admin socket was ever bound) and
-`[workers] max_concurrent_per_worker` (always clamped to 1). **Existing
-`folk.toml` files keep working** — unknown keys are ignored, so leftover
-`rpc_socket` / `max_concurrent_per_worker` lines are simply skipped; you may
-delete them.
+Connections are spread across workers with `SO_REUSEPORT` (HTTP and gRPC); jobs
+become **competing consumers** (each worker is its own broker consumer — exactly
+the right model for RabbitMQ/SQS/NATS/beanstalk/Kafka/Pub-Sub). Metrics from all
+workers are aggregated through a shared-memory segment, so `/metrics` reports
+process-wide totals. Dev hot-reload now re-execs the master for a clean
+bootstrap on file change.
 
-Versions: folk-api 0.2.12, folk-core / folk-ext 0.3.11, folk-builder 0.2.9. The
-jobs / grpc / metrics / process / http plugins are unchanged.
+**Breaking changes**
 
----
+- **PHP is now NTS** (non-thread-safe): base images move from `php:8.x-zts` to
+  `php:8.x`. ZTS is no longer required (or used).
+- **Plugin API (`folk-api` 0.3).** Plugins now declare where they run
+  (`Placement::WorkerOnly` / `MasterOnly` / `Both`) and receive a `PluginRole`.
+  All first-party plugins are updated; third-party plugins must migrate.
+- **Adapter entry point.** `bin/folk-server` now bootstraps the framework once
+  and calls `Folk\Server::serveForked()` instead of `start()` + the worker loop.
+  `folk_is_worker_thread()` is obsolete (there are no worker threads). **Your
+  application code is unchanged** — only the adapter's entry plumbing.
 
-### Previously
+**New config** (see the reference): `[workers] max_memory_mb`, `[metrics]
+max_series`; `[workers] exec_timeout` is now a hard deadline. Optional
+`opcache.preload` (via `php -d` / php.ini) shares compiled framework opcodes
+across workers from the master's warm interpreter.
 
-Managed-broker jobs drivers — RabbitMQ, AWS SQS, NATS/JetStream, beanstalkd,
-Apache Kafka and Google Cloud Pub/Sub ([#39](https://github.com/Folk-Project/folk-releases/issues/39)–[#44](https://github.com/Folk-Project/folk-releases/issues/44)).
-
-The jobs plugin gains six managed-broker backends alongside the existing
-memory / redis / embedded drivers. Each is a Cargo feature (off by default), so
-a build only links the brokers it uses; the default build stays
-`["memory", "redis"]`.
-
-**At-least-once delivery.** The driver contract now leases a message
-(`reserve`) and settles it with `ack` (success) or `nack` (terminal failure)
-instead of a destructive pop. Broker drivers keep a message in-flight until it
-is acked and re-deliver after the lease/visibility window if a worker crashes —
-so jobs are no longer lost on crash. memory / redis / embedded keep their
-previous at-most-once behaviour (their `ack`/`nack` are no-ops). The in-process
-retry/backoff and the app-level `dead_letter_queue` work unchanged across every
-driver; without an app-level DLQ, a terminal failure is routed to the broker's
-native dead-letter facility (RabbitMQ DLX, beanstalk bury, …).
-
-**Drivers.**
-
-```toml
-# RabbitMQ — feature "rabbitmq". Manual ack/nack, prefetch, optional DLX.
-[jobs.connections.rabbitmq]
-url = "amqp://guest:guest@rabbit:5672/%2f"
-prefetch = 10
-  [jobs.connections.rabbitmq.queues.emails]
-  concurrency = 8
-
-# AWS SQS — feature "sqs". Standard + FIFO (*.fifo), LocalStack via `endpoint`.
-[jobs.connections.sqs]
-region = "us-east-1"
-endpoint = "http://localstack:4566"
-  [jobs.connections.sqs.queues.default]
-
-# NATS/JetStream — feature "nats". Durable pull consumers.
-[jobs.connections.nats]
-url = "nats://nats:4222"
-stream = "folk"
-  [jobs.connections.nats.queues.events]
-
-# beanstalkd — feature "beanstalk". Tube = queue, native delay + TTR.
-[jobs.connections.beanstalk]
-host = "beanstalkd"
-port = 11300
-  [jobs.connections.beanstalk.queues.default]
-
-# Apache Kafka — feature "kafka". Topic = queue, consumer group + manual commit.
-[jobs.connections.kafka]
-brokers = "kafka:9092"
-group_id = "folk"
-  [jobs.connections.kafka.queues.events]
-
-# Google Cloud Pub/Sub — feature "pubsub". Topic = queue, pull subscription.
-[jobs.connections.pubsub]
-project_id = "my-project"
-endpoint = "pubsub:8085"           # emulator; empty = real Pub/Sub via ADC
-  [jobs.connections.pubsub.queues.events]
-```
-
-Select drivers per build in `folk.build.toml`:
-
-```toml
-[[plugin]]
-crate_name = "folk-plugin-jobs"
-version = "0.5"
-config_key = "jobs"
-features = ["rabbitmq", "sqs"]
-```
-
-A connection section whose driver is not compiled in still **fails fast** at
-startup with an actionable message. The `[<connection>.]<queue>` addressing from
-PHP is unchanged — `->onQueue("rabbitmq.emails")` targets a specific backend.
-
-**Known limitations.** SQS native delay is capped at 900s; RabbitMQ / NATS /
-Kafka / Pub/Sub delay is a deferred publish (lost if the server crashes inside
-the delay window); Kafka and Pub/Sub do not report queue depth (metric 0). All
-six drivers were smoke-tested against real broker containers.
-
-No `folk-api` / `folk-core` / `folk-ext` changes — the `Driver` trait is
-internal to the jobs plugin.
-
-**Versions.** folk-plugin-jobs 0.4.0 → **0.5.0**.
+Validated end-to-end on Laravel, Symfony, Spiral and Yii 3.

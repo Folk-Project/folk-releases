@@ -27,7 +27,7 @@ script = "vendor/bin/folk-worker"
 # PHP binary path.
 php = "php"
 
-# Number of worker threads. Values > 1 require PHP ZTS build.
+# Number of worker PROCESSES the master forks (PHP is NTS — no ZTS needed).
 count = 4
 
 # Recycle a worker after this many requests (0 = no limit).
@@ -36,8 +36,13 @@ max_jobs = 1000
 # Recycle a worker that has been alive longer than this.
 ttl = "3600s"
 
-# Per-request execution timeout. Worker is terminated on timeout.
+# Per-request HARD deadline: a per-worker watchdog kills the worker process if a
+# request overruns, and the master respawns it (other workers are unaffected).
 exec_timeout = "30s"
+
+# Recycle a worker whose resident memory (RSS) exceeds this many MB. Omit to
+# disable. The master samples per-worker RSS and gracefully recycles offenders.
+max_memory_mb = 256
 
 # Maximum time to wait for a worker to boot and signal ready.
 boot_timeout = "30s"
@@ -50,9 +55,9 @@ warmup = true
 # -----------------------------------------------------------------------------
 # Dev mode (hot reload) — development only, disabled by default
 # -----------------------------------------------------------------------------
-# Watch PHP files and recycle workers on change so edits are picked up without
-# a manual restart. Requires PHP ZTS with count > 1 (the main PHP thread is not
-# recyclable). Keep opcache.validate_timestamps = 1 in dev so OPcache sees edits.
+# Watch PHP files on change so edits are picked up without a manual restart.
+# On change the master drains its workers and re-execs itself (clean bootstrap +
+# fork), so every worker runs the new code. The watcher runs only in the master.
 [dev]
 
 # Enable the file watcher + hot reload. Also turns on dev error reporting:
@@ -198,8 +203,14 @@ proto = []
 # -----------------------------------------------------------------------------
 [metrics]
 
-# Listening address for /metrics (Prometheus) and /health endpoints.
+# Listening address for /metrics (Prometheus) and /health endpoints. The scrape
+# server runs in the master and renders the shared-memory segment that all
+# worker processes write into.
 listen = "0.0.0.0:9090"
+
+# Cap on the number of distinct time series in the shared-memory segment. New
+# series beyond this are dropped and folk_metrics_series_dropped is incremented.
+max_series = 10000
 
 # -----------------------------------------------------------------------------
 # Process Plugin

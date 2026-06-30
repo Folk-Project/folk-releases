@@ -29,23 +29,22 @@ shutdown_timeout = "30s"               # Max time for graceful shutdown after SI
 [workers]
 script = "vendor/bin/folk-worker"      # PHP worker entry point
 php = "php"                            # PHP binary path
-count = 4                              # Worker threads (>1 requires PHP ZTS)
+count = 4                              # Number of worker PROCESSES the master forks (NTS)
 max_jobs = 1000                        # Recycle worker after N requests (0 = never)
 ttl = "3600s"                          # Recycle worker after this lifetime
-exec_timeout = "30s"                   # Per-request soft deadline (in-process thread is not force-killed)
+exec_timeout = "30s"                   # Per-request HARD deadline: a watchdog kills the worker
+                                       # process on overrun and the master respawns it
+max_memory_mb = 256                    # Recycle a worker whose RSS exceeds this (omit = disabled)
 boot_timeout = "30s"                   # Max time to wait for worker ready signal
 warmup = true                          # Compile Composer classmap into opcache before spawn
 
 # =============================================================================
 # Dev mode (hot reload)
 # =============================================================================
-# Watch PHP files and recycle workers on change — for development only.
-# Disabled by default. Requires PHP ZTS with workers.count > 1: the main PHP
-# thread (worker #1) is not recyclable, so single-worker servers cannot fully
-# hot reload. On change, Folk gracefully recycles recyclable workers after their
-# current request completes; each restarted worker re-bootstraps and re-reads
-# the changed code. Keep opcache.validate_timestamps = 1 in dev (the default)
-# so OPcache picks up edits; do not pair enable_cli = 1 with validate_timestamps = 0.
+# Watch PHP files and reload on change — for development only. Disabled by
+# default. On change, the master drains its workers and re-execs itself for a
+# clean bootstrap + fork, so every worker picks up the new code. The file
+# watcher runs only in the master (started after the initial fork).
 # Enabling watch also turns on dev error reporting: fatal worker errors expose
 # the exception class + stack trace to the client (HTTP 500 body / gRPC INTERNAL
 # message). In production leave it off — the client sees a generic message and
@@ -268,11 +267,13 @@ compression = false                    # Enable gzip compression
 # Metrics Plugin
 # =============================================================================
 [metrics]
-listen = "0.0.0.0:9090"               # Listening address
+listen = "0.0.0.0:9090"               # Listening address (scrape server runs in the master)
 prefix = "folk"                        # Namespace prefix for custom metrics (folk_*)
 metrics_path = "/metrics"              # Prometheus scrape endpoint
 health_path = "/health"                # Liveness probe (always 200)
 ready_path = "/ready"                  # Readiness probe (503 if not ready)
+max_series = 10000                     # Cap on distinct series in the shared-memory segment;
+                                       # new series past it increment folk_metrics_series_dropped
 
 # Per-plugin metric filtering (omit = all enabled)
 # [metrics.plugins]

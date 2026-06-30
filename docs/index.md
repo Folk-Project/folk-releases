@@ -13,7 +13,7 @@ Folk replaces nginx + php-fpm with a single binary that handles HTTP, gRPC, back
 - **gRPC server** — Native gRPC with reflection support
 - **Prometheus metrics** — `/metrics` and `/health` endpoints out of the box
 - **Process manager** — Supervised background processes with restart policies
-- **ZTS multi-worker** — Multiple PHP worker threads in a single process (no fork)
+- **Fork-after-warm workers** — a master warms PHP once, then forks N worker processes (crash isolation, force-kill, per-worker memory recycling)
 - **Streaming responses** — True chunked HTTP via `Folk::writeHead/write/end`, SSE support
 - **Plugin architecture** — Only include what you need
 
@@ -52,7 +52,7 @@ See [Configuration](configuration.md) for all available options and [PHP API](ph
 php vendor/bin/folk-worker
 ```
 
-Your application is now serving HTTP on port 8080 with 4 worker threads.
+Your application is now serving HTTP on port 8080 with 4 worker processes.
 
 ## Laravel
 
@@ -181,17 +181,19 @@ See [Benchmarks](benchmarks.md) for methodology and full results.
 
 ## Architecture
 
-Folk runs as a **single PHP process** with an embedded Rust runtime:
+Folk uses a **fork-after-warm** model: a single-threaded **master** boots PHP +
+your framework once, then forks N **worker processes** (the master only
+supervises). The embedded Rust runtime lives in each worker:
 
-- **Rust runtime** (tokio) runs in a background thread, handling all I/O: HTTP, gRPC, job queues, metrics
-- **PHP workers** (ZTS threads) handle business logic — your Laravel/Symfony/plain PHP code
-- **Communication** via `std::sync::mpsc` channels — zero-copy, no sockets, no serialization overhead
+- **Rust runtime** (tokio) runs in each worker, handling its I/O: HTTP, gRPC, job queues
+- **PHP worker** (one per process) handles business logic — your Laravel/Symfony/plain PHP code; the in-process Rust↔PHP bridge is zero-copy (no sockets, no serialization)
+- **Master** supervises: respawn on crash, force-kill on `exec_timeout`, RSS recycle; the metrics scrape server runs here over a shared-memory segment
 
 | Component | Role |
 |-----------|------|
-| Worker 1 (main thread) | PHP worker + process entry point |
-| Workers 2–N (ZTS threads) | Additional PHP workers |
-| HTTP Plugin | Accepts HTTP requests, dispatches to workers |
+| Master (PID 1) | Warms PHP, forks + supervises workers; runs master-only plugins (metrics scrape) |
+| Workers 1–N (processes) | Each: own tokio + PHP, serve requests on `SO_REUSEPORT` |
+| HTTP Plugin | Accepts HTTP requests, dispatches to the worker's PHP |
 | Jobs Plugin | In-memory or Redis job queues |
 | gRPC Plugin | Native gRPC server with reflection |
 | Metrics Plugin | Prometheus `/metrics` + `/health` |
