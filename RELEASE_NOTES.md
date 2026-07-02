@@ -1,3 +1,11 @@
+### 0.2.1 — micro-fix
+
+- **`pie install` on NTS PHP.** The phase-79 prebuilt binaries are Non-Thread-Safe
+  (NTS), but the extension package still declared `support-nts: false`, so
+  `pie install folk-project/ext-folk` aborted on NTS PHP with
+  *IncompatibleThreadSafetyMode*. Metadata now correctly declares NTS support —
+  no binary change, just packaging.
+
 ### What's new
 
 Runtime model: fork-after-warm worker processes (threads → processes)
