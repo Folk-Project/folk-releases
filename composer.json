@@ -4,11 +4,11 @@
     "description": "Folk PHP application server extension — pre-built binaries with all plugins (http, jobs, grpc, metrics, process)",
     "license": "MIT",
     "homepage": "https://folk-project.github.io/folk-releases/",
-    "keywords": ["folk", "php", "extension", "application-server", "zts"],
+    "keywords": ["folk", "php", "extension", "application-server", "nts"],
     "php-ext": {
         "extension-name": "folk",
-        "support-zts": true,
-        "support-nts": false,
+        "support-zts": false,
+        "support-nts": true,
         "download-url-method": ["pre-packaged-binary"]
     },
     "require": {
