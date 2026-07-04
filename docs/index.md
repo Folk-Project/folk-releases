@@ -63,7 +63,7 @@ pie install folk-project/ext-folk
 composer require folk/laravel
 ```
 
-Folk integrates with Laravel automatically via a service provider. HTTP routes, job dispatching, and gRPC handlers work out of the box.
+Folk integrates with Laravel automatically via a service provider. HTTP routes, job dispatching, and gRPC handlers work out of the box. Between requests the adapter resets auth, database transactions, events, queue, temp uploads, the container's `scoped` instances, and Inertia's shared props (Octane-parity), so persistent workers don't leak state across requests.
 
 ### 2. Create `folk.toml`
 
@@ -74,12 +74,24 @@ count = 4
 
 [http]
 listen = "0.0.0.0:8080"
+public_dir = "public"   # serve built assets (Vite/Inertia) from disk; miss → Laravel
 ```
 
 ### 3. Run
 
 ```bash
 php vendor/folk/laravel/bin/folk-server
+```
+
+### Per-request state reset
+
+Folk keeps the app booted across requests, so request-scoped state you mutate must be reset before the next request. The built-in resetters cover the framework; register your own for package/app state via `config/folk.php`:
+
+```php
+// config/folk.php
+'resetters' => [
+    App\Folk\MyStateResetter::class, // implements Folk\Sdk\Reset\ResettableInterface
+],
 ```
 
 ## Spiral

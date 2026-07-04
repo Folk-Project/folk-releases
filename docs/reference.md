@@ -82,6 +82,7 @@ stream_request_body_paths = []         # Restrict streaming to these paths ("*" 
 access_log = false                     # Log every request (method, URI, status, duration)
 trusted_proxies = []                   # CIDR subnets for X-Forwarded-For extraction
 h2c = false                            # HTTP/2 cleartext (without TLS)
+# public_dir = "public"                # Serve matching files from this dir (nginx try_files) before dispatching to PHP; miss → PHP. .php and non-GET/HEAD always go to PHP. Relative to project root. Unset = disabled.
 
 # TLS — enables HTTPS with automatic HTTP/2 via ALPN
 # [http.tls]

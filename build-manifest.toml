@@ -16,8 +16,12 @@
 # against PHP **NTS** (Dockerfile.base: php:8.x, not -zts). Every plugin bumps a
 # major because it depends on the new folk-api 0.3 plugin contract. Exact patch
 # versions are finalized at publish; these are the breaking-major targets.
+#
+# Phase 80 (#82): folk-plugin-http 0.5.1 adds `[http] public_dir` static-file
+# serving. Picked up by the existing "0.5.*" constraint — the .so just needs a
+# rebuild (this release bump).
 [release]
-version = "0.2.1"
+version = "0.2.2"
 
 [builder]
 version = "0.2.11"

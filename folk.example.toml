@@ -107,6 +107,13 @@ write_timeout = "30s"
 # See docs/php-api.md "Request body streaming" / "Multipart form data".
 # stream_request_body = false
 
+# Serve static files from a directory (nginx try_files style) before dispatching
+# to PHP: an existing file under this dir is served straight from disk; a miss
+# falls through to the framework. `.php` files and non-GET/HEAD requests always
+# go to PHP, so the front controller is never returned as source. Path is
+# relative to the project root. Unset = disabled.
+# public_dir = "public"
+
 # -----------------------------------------------------------------------------
 # Jobs Plugin
 # -----------------------------------------------------------------------------
