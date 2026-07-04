@@ -161,6 +161,7 @@ process = "debug"
 [http]
 listen = "0.0.0.0:8080"
 access_log = true
+public_dir = "public"   # serve static files from disk before dispatching to PHP
 
 [jobs]
 driver = "redis"

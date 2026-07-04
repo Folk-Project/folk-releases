@@ -15,12 +15,12 @@ Accepts HTTP connections and dispatches requests to PHP workers. Built on [hyper
 - TLS/SSL via rustls (optional feature `tls`, enabled by default)
 - HTTP/2 cleartext (h2c) via hyper-util (optional feature `h2c`)
 - Response compression: gzip, brotli, zstd, deflate (configurable algorithms and min size)
+- Static file serving from a directory (`public_dir`, nginx `try_files` style)
 - Active connections counter (via `http.connections` RPC)
 - **Lua hook pipeline** — attach Lua scripts to request lifecycle events without writing Rust code
 
 ## Planned
 
-- Static file serving
 - Per-route timeouts and body limits
 
 ## Configuration
@@ -34,6 +34,7 @@ max_request_size = "10mb"       # Max request body size ("10mb", "512kb", or int
 access_log = false              # Enable HTTP access logging
 trusted_proxies = []            # Trusted CIDR subnets for X-Forwarded-For
 h2c = false                     # Enable HTTP/2 cleartext (without TLS)
+# public_dir = "public"         # Serve static files from this dir before dispatching to PHP (disabled by default)
 
 # TLS — if set, the server listens on HTTPS (HTTP/2 via ALPN automatic)
 # [http.tls]
@@ -70,6 +71,21 @@ min_size = "1kb"                # don't compress small responses
 ```
 
 The server respects the client's `Accept-Encoding` header and selects the best matching algorithm from the configured list.
+
+### Static files
+
+Set `public_dir` to serve static assets straight from disk before a request reaches PHP — the same `try_files` behaviour you'd get from nginx or `php artisan serve`:
+
+```toml
+[http]
+public_dir = "public"    # relative to the project root; unset (default) = disabled
+```
+
+- A request that maps to an existing file under `public_dir` is served from disk (with the correct `Content-Type`), so built assets (`/build/assets/app-*.css`, JS, images, fonts) never hit a PHP worker.
+- A miss **falls through** to the PHP handler, so your framework routes keep working.
+- `.php` files and non-`GET`/`HEAD` requests are **always** dispatched to PHP — the framework front controller (`public/index.php`) is never returned as source, and `/` is handled by the framework, not `public/index.html`.
+
+Compression applies to static responses too. For heavy asset traffic you may still prefer a CDN or reverse proxy in front of Folk; `public_dir` removes the hard requirement for one.
 
 ## How It Works
 
