@@ -27,5 +27,12 @@ listen = "0.0.0.0:8080"
 plugins must now declare the section explicitly (e.g. add an empty `[metrics]`
 to keep `/metrics` serving).
 
+**`phpversion("folk")` reports the real version — `folk-builder` 0.2.13.**
+It used to always return `0.1.0`: the builder-generated extension crate had a
+hardcoded version, and PHP derives the extension version from it. The generated
+crate is now stamped with the release version, so `phpversion("folk")` returns
+`0.2.3` and tracks each release. (`\Folk\Sdk\Folk::version()` still reports the
+`folk-ext` core version separately.)
+
 **Prebuilt extension.** The `0.2.3` prebuilt `folk.so` is rebuilt with
-`folk-builder` 0.2.12; no plugin crate changed.
+`folk-builder` 0.2.13; no plugin crate changed.

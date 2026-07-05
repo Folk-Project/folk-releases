@@ -24,11 +24,14 @@
 # Phase 81 (#80): lazy plugin loading — folk-builder 0.2.12 generates conditional
 # plugin registration (a plugin loads only when its folk.toml section is present).
 # Plugin crate versions unchanged; the .so must be rebuilt with builder 0.2.12.
+#
+# folk-builder 0.2.13: the generated extension crate is now stamped with the
+# [release] version below, so phpversion("folk") reports it (was always 0.1.0).
 [release]
 version = "0.2.3"
 
 [builder]
-version = "0.2.12"
+version = "0.2.13"
 
 [plugins]
 folk-plugin-http = "0.5.*"
