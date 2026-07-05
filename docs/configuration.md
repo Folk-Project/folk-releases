@@ -128,6 +128,23 @@ Each plugin has its own configuration section. See the plugin pages for details:
 - [Metrics](plugins/metrics.md) — `[metrics]`
 - [Process](plugins/process.md) — `[process]`
 
+### Section present = plugin enabled
+
+A compiled-in plugin is loaded **only when its config section is present** in `folk.toml`.
+No section means the plugin is not instantiated — it does not start and writes nothing to
+the log. An **empty** section enables the plugin with its defaults:
+
+```toml
+[metrics]   # empty section — metrics enabled with default settings
+```
+
+This lets you compile one binary with every plugin and switch each on or off purely through
+config. A config with only `[http]` runs an HTTP-only server; jobs, gRPC, metrics and process
+stay silent. There is no `enabled = false` flag — simply omit the section to disable a plugin.
+
+Omitting `[http]` is allowed too (e.g. a jobs-only or gRPC-only server); the server then
+starts without an HTTP listener and does so silently.
+
 ## Duration Format
 
 Duration fields accept human-readable values:

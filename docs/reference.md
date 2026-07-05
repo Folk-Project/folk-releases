@@ -10,6 +10,10 @@ Complete `folk.toml` with all available options and their defaults.
 # Place as folk.toml in your project root.
 # All values below are defaults unless noted otherwise.
 #
+# A plugin is loaded only when its config section is present. Omit a section to
+# disable that plugin (it won't start or log); an empty section enables it with
+# defaults. There is no "enabled = false" flag.
+#
 # Environment variable overrides: FOLK_{SECTION}__{FIELD}  (double underscore)
 # Example: FOLK_WORKERS__COUNT=8, FOLK_HTTP__LISTEN=0.0.0.0:9000
 # Note: double underscore separates the section from the field name.
