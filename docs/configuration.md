@@ -34,6 +34,7 @@ ttl = "3600s"                      # Recycle after this lifetime
 exec_timeout = "30s"               # Per-request HARD deadline (watchdog kills + respawns)
 max_memory_mb = 256                # Recycle a worker over this RSS (omit = disabled)
 boot_timeout = "30s"               # Worker boot timeout
+destroy_timeout = "10s"            # SIGTERM → wait → SIGKILL a worker that won't recycle
 warmup = true                      # Opcache warmup before worker spawn
 ```
 
@@ -42,6 +43,19 @@ warmup = true                      # Opcache warmup before worker spawn
 
 !!! note "Worker recycling"
     Workers are recycled (terminated and respawned) when they exceed `max_jobs` or `ttl`. This prevents memory leaks from accumulating. The main thread worker is never recycled.
+
+!!! note "`destroy_timeout`"
+    When a worker is recycled (over `max_memory_mb`) the master sends it `SIGTERM` and lets in-flight requests drain. If the worker is wedged in a C call and never exits, `destroy_timeout` (default `10s`) bounds the wait: the master then escalates to `SIGKILL` of the worker's whole process group, so the pool can't silently shrink. See *Background processes* below for what "process group" means here.
+
+### Background processes
+
+A Folk worker is a **long-lived process** — unlike PHP-FPM, it is not recreated per request. That changes how background work behaves:
+
+- **Synchronous `exec()` / `system()` / `shell_exec()` / `proc_open()` + `proc_close()`** — fully supported. PHP blocks and reaps the child itself, exactly as anywhere else.
+- **Detached processes** (`exec("cmd &")`, `nohup`, a self-daemonizing `proc_open` without `proc_close`) — **discouraged**. Each worker leads its own process group, so such a child is killed together with the worker on force-kill/recycle and cannot leak across restarts. It will *not* survive its worker, so don't use this pattern for durable background work.
+- **`pcntl_fork()` from a request** — **not supported.** Forking duplicates the worker's multithreaded runtime; the child inherits broken locks and would hang and leak PIDs. Folk guards against the hang (the fork child is force-exited), but you must not rely on forking from a request.
+
+For background jobs, scheduled tasks or parallel work, use the **[jobs plugin](plugins/jobs.md)** (queues, retries, delays) or the **[process plugin](plugins/process.md)** (supervised long-running processes with restart policies) instead of spawning from a request. As an extra safety net, run the container with an init/reaper as PID 1 (e.g. `docker run --init` or `tini`).
 
 ## Logging
 

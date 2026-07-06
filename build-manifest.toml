@@ -27,8 +27,13 @@
 #
 # folk-builder 0.2.13: the generated extension crate is now stamped with the
 # [release] version below, so phpversion("folk") reports it (was always 0.1.0).
+#
+# Phase 82 (#84 + #85.2): worker process-group isolation (setpgid + killpg),
+# pcntl_fork safeguard, destroy_timeout escalation — folk-core/folk-ext 0.4.1.
+# No plugin crate changed; the .so just needs a rebuild so the generated crate
+# links folk-ext 0.4.1 (builder codegen pins folk-ext = "0.4", picks up 0.4.1).
 [release]
-version = "0.2.3"
+version = "0.2.4"
 
 [builder]
 version = "0.2.13"

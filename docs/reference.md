@@ -40,6 +40,8 @@ exec_timeout = "30s"                   # Per-request HARD deadline: a watchdog k
                                        # process on overrun and the master respawns it
 max_memory_mb = 256                    # Recycle a worker whose RSS exceeds this (omit = disabled)
 boot_timeout = "30s"                   # Max time to wait for worker ready signal
+destroy_timeout = "10s"                # Grace after recycle SIGTERM before the master SIGKILLs
+                                       # the worker's process group (wedged worker won't hang the pool)
 warmup = true                          # Compile Composer classmap into opcache before spawn
 
 # =============================================================================

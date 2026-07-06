@@ -47,6 +47,11 @@ max_memory_mb = 256
 # Maximum time to wait for a worker to boot and signal ready.
 boot_timeout = "30s"
 
+# Grace period after a graceful recycle SIGTERM before the master escalates to a
+# SIGKILL of the worker's whole process group. Guards against a worker wedged in
+# a C call hanging in the recycling state forever.
+destroy_timeout = "10s"
+
 # Warm up opcache before spawning workers.
 # Compiles all Composer classmap files into shared opcache.
 # Set to false to disable.
