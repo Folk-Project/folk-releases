@@ -52,6 +52,12 @@ boot_timeout = "30s"
 # a C call hanging in the recycling state forever.
 destroy_timeout = "10s"
 
+# Force-recycle a worker whose async runtime heartbeat stalls for this long while
+# the process is alive (a wedged/deadlocked runtime that exec_timeout can't see).
+# Traffic-independent, so an idle worker is never mistaken for hung. 0 = disabled
+# (per-worker folk_worker_* metrics still expose the signal for alerting).
+liveness_timeout = "0s"
+
 # Warm up opcache before spawning workers.
 # Compiles all Composer classmap files into shared opcache.
 # Set to false to disable.

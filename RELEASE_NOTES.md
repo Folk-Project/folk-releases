@@ -1,50 +1,54 @@
-### 0.2.4 — worker process isolation
+### 0.2.5 — supervisor resilience
 
-Thanks to [@Ferikl](https://github.com/Ferikl) for reporting the process-leak
-problem that motivated this release.
+**Worker supervisor resilience ([#85](https://github.com/Folk-Project/folk-releases/issues/85)) — `folk-core`/`folk-ext` 0.5.0.**
+Hardening the fork-after-warm supervisor with per-worker liveness, observability,
+and the recycle policies the fork model was silently skipping.
 
-**Worker process-group isolation ([#84](https://github.com/Folk-Project/folk-releases/issues/84)) — `folk-core`/`folk-ext` 0.4.1.**
-Fork-after-warm workers are long-lived. A **live detached process** spawned from
-a request — `exec("cmd &")`, a self-daemonizing `proc_open`, `nohup` — used to
-outlive its worker: it survived recycle/force-kill, was re-parented to the master
-and **accumulated** until the pod ran out of resources (the same class of problem
-FrankenPHP hit). Reaping never touched it because it was alive, not a zombie.
+**Per-worker metrics.** `/metrics` now exposes, labelled by `worker_id`:
 
-Each worker (and the master-services process) is now the leader of its **own
-process group** (`setpgid`). Any process it spawns inherits that group, so a
-**force-kill takes the whole subtree with it** (`kill(-pgid)`):
+- `folk_worker_heartbeat_millis` — wall-clock of each worker's last runtime beat.
+- `folk_worker_inflight_seconds` — age of the worker's in-flight request (0 = idle).
+- `folk_worker_requests_total` — requests handled per worker slot.
 
-- **exec_timeout watchdog** — a wedged worker is killed together with its subtree.
-- **shutdown drain** — the final `SIGKILL` targets the group, not just the worker.
-- **Graceful RSS recycle** still signals only the worker (`SIGTERM`), so in-flight
-  synchronous `exec` children finish normally.
+A degraded or hung worker is now visible even without any auto-recycling.
 
-**`destroy_timeout` escalation ([#85](https://github.com/Folk-Project/folk-releases/issues/85)).**
-A worker recycled for memory that **ignores `SIGTERM`** (wedged in a C call) used
-to hang in the recycling state forever, silently shrinking the pool. A new
-`[workers] destroy_timeout` (default `10s`) bounds this: if the worker hasn't
-exited within the window, the master escalates to a group `SIGKILL`.
+**Liveness watchdog — `[workers] liveness_timeout`** (default `0` = off).
+`exec_timeout` only catches a request that runs too long. It can't catch a worker
+whose **async runtime** has wedged *outside* a request — e.g. a deadlocked
+runtime whose HTTP listener stopped accepting. Each worker's runtime now bumps a
+heartbeat every second, independent of PHP and of traffic; if it stalls past
+`liveness_timeout` while the process is alive, the master force-recycles it.
+Because the heartbeat is traffic-independent, an **idle worker is never mistaken
+for a hung one** — set it generously (tens of seconds) or leave it off.
 
 ```toml
 [workers]
-max_memory_mb = 256
-destroy_timeout = "10s"   # SIGTERM → wait → SIGKILL the worker's process group
+liveness_timeout = "30s"   # force-recycle a worker whose runtime stalls this long
 ```
 
-**`pcntl_fork()` from a request is not supported — now guarded.**
-Forking a request duplicates the worker's already-multithreaded runtime (tokio +
-watchdog); the child inherits broken mutexes and would hang (S-state, leaking
-PIDs). Folk now ports FrankenPHP's fix: the fork child is `_exit`-ed immediately
-after the PHP call instead of re-entering the runtime, and the worker reaps the
-resulting short-lived child so it does not accumulate. **For background or
-parallel work use `folk-plugin-jobs` or `folk-plugin-process`, not `exec("&")`
-or `pcntl_fork()`.** See *Configuration → Background processes*.
+**`max_jobs` and `ttl` now work in the fork model (behaviour change).** They
+previously had **no effect** under fork-after-warm — the single in-process worker
+is the non-recyclable main thread, so the pool skipped them. The master now
+enforces them itself (from the per-worker request count and spawn time), so
+workers again recycle after `max_jobs` requests or `ttl` age. If you relied on
+the (unintended) no-op, set `max_jobs = 0` and a large `ttl` to keep workers
+long-lived. `max_memory_mb` (RSS) remains the recommended primary control.
+
+**Recycles are staggered.** When many workers cross a limit at once (memory,
+jobs, or ttl), the master recycles **one per second** instead of all together,
+avoiding a cold-start stampede where the whole pool respawns and re-warms in
+lockstep.
+
+**Streaming timeouts verified.** `exec_timeout` is a dispatch-based deadline
+(queue wait isn't counted) and covers streaming responses; a client that
+disconnects mid-stream unblocks the PHP writer with an error in bounded time
+rather than wedging the worker. No code change — confirmed and documented.
 
 **Scope.** `folk-core`/`folk-ext` only — `folk-api`, the plugins and the PHP
-contract are unchanged. Docker-smoked: detached `exec` subtree dies on force-kill
-(with a negative control proving the leak before the fix), `pcntl_fork` no longer
-hangs or accumulates, `destroy_timeout` escalation fires, and synchronous `exec`,
-crash isolation, graceful recycle and `exec_timeout` all still work.
+contract are unchanged. Docker-smoked (2 workers): per-worker metrics; a frozen
+worker (`kill -STOP`) force-recycled within `liveness_timeout` while an idle
+worker is left alone; `max_jobs` recycle + stagger; mid-stream client disconnect;
+and HTTP/streaming/recycle regressions.
 
-**Prebuilt extension.** The `0.2.4` prebuilt `folk.so` is rebuilt against
-`folk-ext` 0.4.1; no plugin crate changed.
+**Prebuilt extension.** The `0.2.5` prebuilt `folk.so` is rebuilt against
+`folk-ext` 0.5.0; no plugin crate changed.

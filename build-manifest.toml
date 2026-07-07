@@ -30,13 +30,18 @@
 #
 # Phase 82 (#84 + #85.2): worker process-group isolation (setpgid + killpg),
 # pcntl_fork safeguard, destroy_timeout escalation — folk-core/folk-ext 0.4.1.
-# No plugin crate changed; the .so just needs a rebuild so the generated crate
-# links folk-ext 0.4.1 (builder codegen pins folk-ext = "0.4", picks up 0.4.1).
+#
+# Phase 83 (#85 remainder): supervisor resilience — per-worker folk_worker_*
+# metrics, [workers] liveness_timeout heartbeat recycle, max_jobs/ttl honoured in
+# the fork model + staggered recycle — folk-core/folk-ext 0.5.0. No plugin crate
+# changed; the .so needs a rebuild against folk-ext 0.5.0. folk-ext 0.5 is a
+# minor bump, so folk-builder 0.2.14 bumps its codegen pin "0.4"→"0.5" (^0.4
+# would exclude 0.5.0) — [builder] below is 0.2.14 for this reason.
 [release]
-version = "0.2.4"
+version = "0.2.5"
 
 [builder]
-version = "0.2.13"
+version = "0.2.14"
 
 [plugins]
 folk-plugin-http = "0.5.*"

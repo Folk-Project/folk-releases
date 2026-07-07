@@ -35,8 +35,15 @@ exec_timeout = "30s"               # Per-request HARD deadline (watchdog kills +
 max_memory_mb = 256                # Recycle a worker over this RSS (omit = disabled)
 boot_timeout = "30s"               # Worker boot timeout
 destroy_timeout = "10s"            # SIGTERM → wait → SIGKILL a worker that won't recycle
+liveness_timeout = "0s"            # Force-recycle a worker whose runtime stalls (0 = off)
 warmup = true                      # Opcache warmup before worker spawn
 ```
+
+!!! note "`liveness_timeout` (runtime liveness)"
+    `exec_timeout` only catches a request that runs too long. It can't catch a worker whose **async runtime** has wedged *outside* a request (e.g. a deadlocked runtime whose HTTP listener stopped accepting). With `liveness_timeout` set, each worker's runtime emits a heartbeat every second (independent of PHP and of traffic); if it stalls past the timeout while the process is alive, the master force-recycles the worker. Because the heartbeat is traffic-independent, an **idle worker is never mistaken for a hung one** — leave it `0` (off) or set it generously (tens of seconds). Per-worker `folk_worker_*` metrics (see the metrics plugin) expose the same signal for alerting.
+
+!!! warning "`max_jobs` / `ttl` in the fork model"
+    Under the fork-after-warm model these are enforced by the master. Both are **on by default** (`max_jobs = 1000`, `ttl = 3600s`), so workers recycle after 1000 requests or one hour. Set `max_jobs = 0` and a large `ttl` if you want long-lived workers and rely only on `max_memory_mb`. When many workers cross a limit together the master staggers recycles (one per second) to avoid a cold-start stampede.
 
 !!! note "Opcache warmup"
     When `warmup` is enabled (default), Folk automatically compiles all files from `vendor/composer/autoload_classmap.php` into shared opcache before spawning workers. This eliminates the parse+compile overhead on first requests — workers start with hot opcache immediately. Works with any framework or vanilla PHP project that uses Composer. Requires `composer install --optimize-autoloader` for full coverage.

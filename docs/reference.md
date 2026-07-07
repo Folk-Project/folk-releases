@@ -42,6 +42,8 @@ max_memory_mb = 256                    # Recycle a worker whose RSS exceeds this
 boot_timeout = "30s"                   # Max time to wait for worker ready signal
 destroy_timeout = "10s"                # Grace after recycle SIGTERM before the master SIGKILLs
                                        # the worker's process group (wedged worker won't hang the pool)
+liveness_timeout = "0s"                # Force-recycle a worker whose runtime heartbeat stalls this
+                                       # long (wedged async runtime); 0 = disabled (metrics-only)
 warmup = true                          # Compile Composer classmap into opcache before spawn
 
 # =============================================================================

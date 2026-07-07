@@ -149,5 +149,16 @@ Each plugin registers its own metrics. Available metrics depend on which plugins
 | **grpc** | `folk_grpc_requests_total`, `folk_grpc_request_duration_seconds`, `folk_grpc_message_sent_bytes`, `folk_grpc_message_received_bytes`, `folk_grpc_active_streams`, `folk_grpc_errors_total` |
 | **jobs** | `folk_jobs_pushed_total`, `folk_jobs_processed_total`, `folk_jobs_processing_duration_seconds`, `folk_jobs_retries_total`, `folk_jobs_dead_letter_total`, `folk_jobs_active` |
 | **core** | `folk_workers_total`, `folk_request_dispatch_total`, `folk_request_dispatch_duration_seconds`, `folk_worker_restarts_total`, `folk_request_queue_size` (planned) |
+| **core (per-worker, fork model)** | `folk_worker_heartbeat_millis`, `folk_worker_inflight_seconds`, `folk_worker_requests_total` — each labelled by `worker_id` |
+
+### Per-worker liveness (fork model)
+
+Under the fork-after-warm model each worker process reports its own liveness once a second, labelled by `worker_id`:
+
+- **`folk_worker_heartbeat_millis{worker_id}`** — wall-clock millis of the worker's last runtime heartbeat. If it stops advancing while the worker is alive, that worker's async runtime has wedged. Alert on `time() * 1000 - folk_worker_heartbeat_millis` exceeding a few seconds.
+- **`folk_worker_inflight_seconds{worker_id}`** — age of the worker's in-flight request (`0` when idle). A high value means a request is stuck.
+- **`folk_worker_requests_total{worker_id}`** — requests handled per worker slot (cumulative across respawns).
+
+Setting `[workers] liveness_timeout` makes the master act on the heartbeat automatically (force-recycle); leaving it off keeps these metrics as a pure observability signal.
 | **http** | `folk_http_requests_total`, `folk_http_request_duration_seconds`, `folk_http_active_connections`, `folk_http_errors_total` (planned) |
 | **process** | `folk_process_up`, `folk_process_restarts_total`, `folk_process_uptime_seconds` (planned) |
