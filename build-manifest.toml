@@ -37,11 +37,17 @@
 # changed; the .so needs a rebuild against folk-ext 0.5.0. folk-ext 0.5 is a
 # minor bump, so folk-builder 0.2.14 bumps its codegen pin "0.4"→"0.5" (^0.4
 # would exclude 0.5.0) — [builder] below is 0.2.14 for this reason.
+#
+# Phase 84 (#86): auth/session leak + multi Set-Cookie. folk-plugin-http 0.5.2
+# emits repeated headers; folk-api 0.3.1 / folk-ext 0.5.1 carry response headers
+# as ordered pairs (streamed path); folk-builder 0.2.15 regenerates folk_write_head
+# accordingly. Plugin constraint "0.5.*" already covers 0.5.2 — the .so must be
+# rebuilt with builder 0.2.15 (which pulls folk-ext 0.5.1 / folk-api 0.3.1).
 [release]
-version = "0.2.5"
+version = "0.2.6"
 
 [builder]
-version = "0.2.14"
+version = "0.2.15"
 
 [plugins]
 folk-plugin-http = "0.5.*"
