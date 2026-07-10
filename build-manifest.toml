@@ -43,11 +43,20 @@
 # as ordered pairs (streamed path); folk-builder 0.2.15 regenerates folk_write_head
 # accordingly. Plugin constraint "0.5.*" already covers 0.5.2 — the .so must be
 # rebuilt with builder 0.2.15 (which pulls folk-ext 0.5.1 / folk-api 0.3.1).
+#
+# Phase 85 (#81): per-plugin worker pools + cross-pool jobs. `[http].workers` /
+# `[jobs].workers` scale subsystems independently (folk-core/folk-ext 0.6.0,
+# folk-api 0.3.2 additive — PoolContext + runs_in_every_pool). folk-plugin-jobs
+# 0.7.0 is booted in every pool for jobs.push and consumes only in its owning
+# pool (cross-pool jobs need redis/a broker). folk-builder 0.2.16 emits the
+# per-plugin workers map and pins codegen folk-ext "0.5"→"0.6" (^0.5 excludes
+# 0.6.0). http/grpc/metrics/process unchanged; the .so must be rebuilt with
+# builder 0.2.16 (which pulls folk-ext 0.6.0 / folk-api 0.3.2).
 [release]
-version = "0.2.6"
+version = "0.2.7"
 
 [builder]
-version = "0.2.15"
+version = "0.2.16"
 
 [plugins]
 folk-plugin-http = "0.5.*"
@@ -56,7 +65,7 @@ folk-plugin-metrics = "0.3.*"
 folk-plugin-process = "0.3.*"
 
 [plugins.folk-plugin-jobs]
-version = "0.6.*"
+version = "0.7.*"
 # All drivers compiled into the prebuilt .so. Managed-broker drivers pull heavy
 # native deps (rdkafka/openssl/sasl) — Dockerfile.base installs them.
 features = ["redis", "embedded", "rabbitmq", "sqs", "nats", "beanstalk", "kafka", "pubsub"]

@@ -33,7 +33,8 @@ shutdown_timeout = "30s"               # Max time for graceful shutdown after SI
 [workers]
 script = "vendor/bin/folk-worker"      # PHP worker entry point
 php = "php"                            # PHP binary path
-count = 4                              # Number of worker PROCESSES the master forks (NTS)
+count = 4                              # Size of the SHARED worker pool: processes carrying every
+                                       # plugin that has no per-plugin `workers` (see below)
 max_jobs = 1000                        # Recycle worker after N requests (0 = never)
 ttl = "3600s"                          # Recycle worker after this lifetime
 exec_timeout = "30s"                   # Per-request HARD deadline: a watchdog kills the worker
@@ -45,6 +46,26 @@ destroy_timeout = "10s"                # Grace after recycle SIGTERM before the 
 liveness_timeout = "0s"                # Force-recycle a worker whose runtime heartbeat stalls this
                                        # long (wedged async runtime); 0 = disabled (metrics-only)
 warmup = true                          # Compile Composer classmap into opcache before spawn
+
+# -----------------------------------------------------------------------------
+# Per-plugin worker pools (phase 85)
+# -----------------------------------------------------------------------------
+# Scale subsystems independently by adding `workers = N` to a plugin's section
+# (`[http]`, `[jobs]`, `[grpc]`). That plugin gets its OWN dedicated pool of N
+# processes carrying only it; plugins without a `workers` key share the
+# `[workers] count` pool above. With no per-plugin `workers` anywhere, there is a
+# single shared pool of `count` — identical to earlier releases (zero change).
+#
+#   [http]
+#   workers = 8      # 8 HTTP-only processes
+#   [jobs]
+#   workers = 1      # 1 queue consumer, independent of HTTP concurrency
+#
+# Cross-pool jobs: dispatching a job from an HTTP handler works across pools, but
+# only through the queue backend — use redis or a managed broker. The `memory`
+# and `embedded` drivers are per-process, so a dedicated `jobs` pool with them
+# cannot receive jobs pushed from other pools (a startup warning is logged).
+# Per-worker metrics carry a `pool` label alongside `worker_id`.
 
 # =============================================================================
 # Dev mode (hot reload)

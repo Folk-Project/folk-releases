@@ -1,35 +1,35 @@
-### 0.2.6 — auth/session leak + multi Set-Cookie ([#86](https://github.com/Folk-Project/folk-releases/issues/86))
+### 0.2.7 — per-plugin worker pools + cross-pool jobs ([#81](https://github.com/Folk-Project/folk-releases/issues/81))
 
-**P0: authenticated state leaked between requests on a warm worker, and cookie
-handling was broken on the persistent-worker HTTP path.** Fixing #86 uncovered
-four related defects, all fixed here. Session-based auth (Laravel/Symfony/Spiral/
-Yii3) now works correctly on Folk and no longer leaks between clients.
+**Scale subsystems independently.** You can now set a worker count per plugin
+instead of one global `[workers] count`:
 
-**1 — Auth/session no longer leaks (Laravel).** A request carrying no session
-cookie could be served as the previously logged-in user. `SessionResetter` now
-flushes the cached session store between requests, and `AuthResetter` calls
-`AuthManager::forgetGuards()` (was per-guard `forgetUser()`, which left
-`loggedOut`/`recallAttempted` set and ignored custom guards).
+```toml
+[workers]
+count = 4        # shared pool: plugins without their own `workers`
 
-**2 — Request cookies are now parsed.** The adapters never fed the incoming
-`Cookie` header to the framework request (`SymfonyRequest::create()` and PSR-7
-don't derive it), so every request got a fresh, empty session — sessions, auth
-and CSRF silently didn't work on a persistent worker. A shared
-`Folk\Sdk\Http\CookieParser` now wires request cookies into Laravel, Symfony,
-Spiral and Yii3.
+[http]
+workers = 8      # dedicated pool of 8 processes for HTTP
 
-**3 — Multiple `Set-Cookie` headers.** Several cookies (e.g. `XSRF-TOKEN` +
-`laravel_session`) were folded into one comma-joined header and corrupted.
-Responses now emit one `Set-Cookie` per cookie on both the buffered and the
-streamed (`Folk::writeHead`) paths. `ResponseChunk::Headers` carries ordered
-`(name, value)` pairs (`folk-api` 0.3.1) instead of a map.
+[jobs]
+workers = 1      # dedicated pool of 1 consumer
+```
 
-**4 — Resetters run after a failed request too.** `WorkerLoop::dispatchDirect`
-now runs per-request resetters in a `finally`, so a request that throws mid-way
-can't leak its state into the next one.
+A plugin with an explicit `workers = M` is carved into its own pool of M
+processes; plugins without one share the `[workers] count` pool. With **no**
+per-plugin `workers`, behaviour is unchanged — a single shared pool of `count`.
 
-**Versions.** `folk-api` 0.3.1, `folk-core`/`folk-ext` 0.5.1, `folk-plugin-http`
-0.5.2, `folk-builder` 0.2.15; `folk/sdk` 0.4.1, `folk/laravel` 0.4.2,
-`folk/symfony` · `folk/spiral` · `folk/yii3` 0.2.1. Prebuilt `.so` rebuilt
-(build-manifest 0.2.6). No plugin cascade — `folk-plugin-jobs`/`grpc`/`metrics`/
-`process` are unchanged.
+**Cross-pool jobs.** Because Folk's RPC is in-process (zero-IPC), the `jobs`
+plugin is booted in *every* worker pool so `jobs.push` resolves when you dispatch
+a job from an HTTP handler — but it only **consumes** in its own pool. This is
+the classic "many web workers, few queue consumers" layout. Cross-pool delivery
+goes through the queue backend, so it requires **redis or a managed broker**;
+the `memory`/`embedded` drivers stay per-process (a dedicated `jobs` pool with
+them warns that pushed jobs won't reach the consumer pool).
+
+Per-worker metrics (`folk_worker_heartbeat_millis`/`_inflight_seconds`/
+`_requests_total`) now carry a `pool` label alongside `worker_id`.
+
+**Versions.** `folk-api` 0.3.2 (additive: `PoolContext` + `runs_in_every_pool`,
+no plugin cascade), `folk-core`/`folk-ext` 0.6.0, `folk-plugin-jobs` 0.7.0,
+`folk-builder` 0.2.16. `folk-plugin-http`/`grpc`/`metrics`/`process`, `folk/sdk`
+and the PHP adapters are unchanged. Prebuilt `.so` rebuilt (build-manifest 0.2.7).

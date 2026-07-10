@@ -27,7 +27,10 @@ script = "vendor/bin/folk-worker"
 # PHP binary path.
 php = "php"
 
-# Number of worker PROCESSES the master forks (PHP is NTS — no ZTS needed).
+# Size of the SHARED worker pool: processes carrying every plugin that has no
+# per-plugin `workers`. Add `workers = N` under a plugin section (e.g. `[http]`,
+# `[jobs]`) to give it its own dedicated pool of N processes and scale
+# subsystems independently. No per-plugin `workers` = one shared pool of `count`.
 count = 4
 
 # Recycle a worker after this many requests (0 = no limit).
