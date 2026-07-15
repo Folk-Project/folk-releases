@@ -1,3 +1,21 @@
+### Adapter fix — `folk-server` via the Composer bin-proxy ([#79](https://github.com/Folk-Project/folk-releases/issues/79))
+
+**You can now launch the server with `php vendor/bin/folk-server`.** Previously
+only the direct path (`php vendor/folk/<adapter>/bin/folk-server`) worked; the
+canonical Composer bin-proxy `vendor/bin/folk-server` crashed at startup because
+Composer's proxy sets the autoload path with a literal `..`
+(`vendor/bin/../autoload.php`) that string `dirname()` does not collapse — the
+project root resolved to `vendor/bin` and bootstrap failed.
+
+The adapter entrypoints now normalize the path with `realpath()`, so both the
+bin-proxy and the direct path / symlink work. The docs now use
+`vendor/bin/folk-server` for every framework.
+
+Rust unchanged (PHP-only) — no extension rebuild needed. Ships in **folk/laravel
+0.4.3**, **folk/spiral·symfony·yii3 0.2.2**, **folk/sdk 0.4.2** (bin/folk-worker
+autoload aligned). Validated end-to-end against a real Composer bin-proxy on all
+four framework smoke stands, with a negative control confirming the pre-fix crash.
+
 ### 0.2.7 — per-plugin worker pools + cross-pool jobs ([#81](https://github.com/Folk-Project/folk-releases/issues/81))
 
 **Scale subsystems independently.** You can now set a worker count per plugin

@@ -38,12 +38,9 @@ composer require folk/sdk        # plain PHP
 
 ```toml
 [workers]
-# plain SDK:   vendor/bin/folk-worker
-# Laravel:     vendor/folk/laravel/bin/folk-server
-# Spiral:      vendor/folk/spiral/bin/folk-server
-# Symfony:     vendor/folk/symfony/bin/folk-server
-# Yii 3:       vendor/folk/yii3/bin/folk-server
-script = "vendor/bin/folk-worker"
+# Framework adapters (Laravel/Spiral/Symfony/Yii 3): vendor/bin/folk-server
+# Plain SDK:                                          vendor/bin/folk-worker
+script = "vendor/bin/folk-server"
 count = 4
 
 [http]
@@ -53,7 +50,7 @@ listen = "0.0.0.0:8080"
 **4. Run:**
 
 ```bash
-php vendor/bin/folk-worker   # or the framework's bin/folk-server
+php vendor/bin/folk-server   # framework adapters; plain SDK: vendor/bin/folk-worker
 ```
 
 Your app is now serving HTTP on port 8080 across 4 worker processes.

@@ -36,14 +36,9 @@ WORKDIR /app
 COPY . .
 RUN composer install --no-dev
 
-# For Laravel:
-CMD ["php", "vendor/folk/laravel/bin/folk-server"]
-# For Spiral:
-# CMD ["php", "vendor/folk/spiral/bin/folk-server"]
-# For Symfony:
-# CMD ["php", "vendor/folk/symfony/bin/folk-server"]
-# For Yii 3:
-# CMD ["php", "vendor/folk/yii3/bin/folk-server"]
+# Framework adapters (Laravel / Spiral / Symfony / Yii 3) all expose the same
+# Composer bin-proxy — one command regardless of framework:
+CMD ["php", "vendor/bin/folk-server"]
 # For plain SDK:
 # CMD ["php", "vendor/bin/folk-worker"]
 ```

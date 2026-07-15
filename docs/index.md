@@ -69,7 +69,7 @@ Folk integrates with Laravel automatically via a service provider. HTTP routes, 
 
 ```toml
 [workers]
-script = "vendor/folk/laravel/bin/folk-server"
+script = "vendor/bin/folk-server"
 count = 4
 
 [http]
@@ -80,7 +80,7 @@ public_dir = "public"   # serve built assets (Vite/Inertia) from disk; miss → 
 ### 3. Run
 
 ```bash
-php vendor/folk/laravel/bin/folk-server
+php vendor/bin/folk-server
 ```
 
 ### Per-request state reset
@@ -109,7 +109,7 @@ Folk integrates with Spiral Framework 3.x. HTTP pipeline, job processing, gRPC, 
 
 ```toml
 [workers]
-script = "vendor/folk/spiral/bin/folk-server"
+script = "vendor/bin/folk-server"
 count = 4
 
 [http]
@@ -119,7 +119,7 @@ listen = "0.0.0.0:8080"
 ### 3. Run
 
 ```bash
-php vendor/folk/spiral/bin/folk-server
+php vendor/bin/folk-server
 ```
 
 ## Symfony
@@ -137,7 +137,7 @@ Folk integrates with Symfony 6.4/7.x/8.x. HTTP kernel, services resetter, and Do
 
 ```toml
 [workers]
-script = "vendor/folk/symfony/bin/folk-server"
+script = "vendor/bin/folk-server"
 count = 4
 
 [http]
@@ -147,7 +147,7 @@ listen = "0.0.0.0:8080"
 ### 3. Run
 
 ```bash
-php vendor/folk/symfony/bin/folk-server
+php vendor/bin/folk-server
 ```
 
 ## Yii 3
@@ -165,7 +165,7 @@ Folk integrates with Yii 3 via its native PSR-15 pipeline. HTTP handling, state 
 
 ```toml
 [workers]
-script = "vendor/folk/yii3/bin/folk-server"
+script = "vendor/bin/folk-server"
 count = 4
 
 [http]
@@ -175,7 +175,7 @@ listen = "0.0.0.0:8080"
 ### 3. Run
 
 ```bash
-php vendor/folk/yii3/bin/folk-server
+php vendor/bin/folk-server
 ```
 
 ## Performance
