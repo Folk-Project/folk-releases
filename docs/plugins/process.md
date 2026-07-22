@@ -94,4 +94,4 @@ After `max_restarts` is reached, the process is left stopped and a warning is lo
 | Method | Payload | Description |
 |--------|---------|-------------|
 | `process.list` | none | List all supervised process statuses |
-| `process.restart` | `"process-name"` (msgpack string) | Restart a named process |
+| `process.restart` | `"process-name"` (JSON string) | Restart a named process |

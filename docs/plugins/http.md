@@ -207,6 +207,26 @@ Log::withContext(['request_id' => Folk::requestId()]);
 `requestId()` returns `""` outside of a request, or when the Folk extension is not
 loaded (e.g. in unit tests), so it is always safe to call.
 
-> Concurrency note: the `[workers] max_concurrent_per_worker` setting currently
-> supports only `1` (one request per worker at a time). Values `> 1` are reserved
-> for a future async runtime and are clamped to `1` with a warning.
+> Concurrency model: each worker process handles **one request at a time**.
+> Scale HTTP throughput with more worker processes — either the shared
+> `[workers] count` pool, or a dedicated HTTP pool via `[http] workers = N`
+> (see [Scaling](#scaling)).
+
+## Scaling
+
+By default the HTTP plugin runs in the shared worker pool alongside the other
+plugins. To give HTTP its own process pool — sized independently of jobs or gRPC
+concurrency — set `workers` in the `[http]` section:
+
+```toml
+[workers]
+count = 4        # shared pool
+
+[http]
+workers = 8      # 8 dedicated HTTP-only processes
+```
+
+Each worker binds the listener with `SO_REUSEPORT`, so the kernel load-balances
+accepted connections across the pool with no user-space dispatcher. With no
+per-plugin `workers` anywhere, HTTP shares the `[workers] count` pool — identical
+to earlier releases.

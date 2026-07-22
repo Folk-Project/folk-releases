@@ -28,9 +28,11 @@ Laravel application returning a JSON response from a route.
 
 \* Swoole benchmark image may be misconfigured.
 
-## Laravel Welcome Page
+## Laravel Welcome Page (legacy — pre-fork ZTS)
 
-Full Laravel welcome page render.
+Full Laravel welcome page render. **These figures predate the fork-after-warm
+model** — they were measured on the old ZTS thread-per-worker build and are kept
+only for historical reference. They will be re-run on the current NTS fork model.
 
 **Tool:** `wrk -t4 -c50 -d30s`, no resource limits
 
@@ -44,5 +46,7 @@ Full Laravel welcome page render.
 - All tests use the same hardware and Docker resource limits
 - `wrk` runs from the host machine against the Docker container
 - Each test runs for 30 seconds after a warm-up period
-- Folk uses 4 forked worker processes (NTS); figures above predate the fork model and will be refreshed
+- Folk uses 4 forked worker processes (NTS). The **Raw JSON** and **Laravel /ping**
+  tables reflect the current fork model; the **Welcome Page** table above is a
+  legacy ZTS measurement pending a refresh
 - Swoole, RoadRunner, and FrankenPHP use their default recommended configurations with 4 workers

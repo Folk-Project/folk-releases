@@ -9,11 +9,12 @@ Folk replaces nginx + php-fpm with a single binary that handles HTTP, gRPC, back
 ## Features
 
 - **HTTP server** — Built on hyper/axum, dispatches requests to PHP workers
-- **Background jobs** — In-memory or Redis-backed queues with retry policies
+- **Background jobs** — Pluggable queue backends (memory, Redis, embedded redb, and the RabbitMQ/SQS/NATS/Kafka/beanstalkd/Pub/Sub brokers) with retries, delays and priorities
 - **gRPC server** — Native gRPC with reflection support
 - **Prometheus metrics** — `/metrics` and `/health` endpoints out of the box
 - **Process manager** — Supervised background processes with restart policies
 - **Fork-after-warm workers** — a master warms PHP once, then forks N worker processes (crash isolation, force-kill, per-worker memory recycling)
+- **Per-plugin worker pools** — scale HTTP, jobs and gRPC independently with a dedicated process pool each (`[http] workers = N`)
 - **Streaming responses** — True chunked HTTP via `Folk::writeHead/write/end`, SSE support
 - **Plugin architecture** — Only include what you need
 
@@ -206,7 +207,7 @@ supervises). The embedded Rust runtime lives in each worker:
 | Master (PID 1) | Warms PHP, forks + supervises workers; runs master-only plugins (metrics scrape) |
 | Workers 1–N (processes) | Each: own tokio + PHP, serve requests on `SO_REUSEPORT` |
 | HTTP Plugin | Accepts HTTP requests, dispatches to the worker's PHP |
-| Jobs Plugin | In-memory or Redis job queues |
+| Jobs Plugin | Queue backends: memory, Redis, embedded redb, and managed brokers (RabbitMQ/SQS/NATS/Kafka/beanstalkd/Pub/Sub) |
 | gRPC Plugin | Native gRPC server with reflection |
 | Metrics Plugin | Prometheus `/metrics` + `/health` |
 | Process Plugin | Supervised background processes |

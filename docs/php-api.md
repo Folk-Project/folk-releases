@@ -123,7 +123,7 @@ A random RFC 4122 version 4 UUID.
 Returns the version string of the loaded Folk extension.
 
 ```php
-echo folk_version(); // "folk-ext 0.3.7"
+echo folk_version(); // e.g. "folk-ext 0.6.0" (the folk-ext core version)
 ```
 
 ### `folk_request_id(): string`

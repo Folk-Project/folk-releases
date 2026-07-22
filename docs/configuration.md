@@ -39,6 +39,36 @@ liveness_timeout = "0s"            # Force-recycle a worker whose runtime stalls
 warmup = true                      # Opcache warmup before worker spawn
 ```
 
+### Per-plugin worker pools
+
+`count` sizes a **shared** pool that carries every plugin. To scale a subsystem
+independently, add `workers = N` to that plugin's own section — it gets a
+**dedicated** pool of `N` processes carrying only it; plugins without a
+`workers` key stay in the shared `count` pool:
+
+```toml
+[workers]
+count = 4        # shared pool: plugins without their own `workers`
+
+[http]
+workers = 8      # dedicated pool of 8 HTTP-only processes
+
+[jobs]
+workers = 1      # dedicated pool of 1 queue consumer
+```
+
+With **no** per-plugin `workers` anywhere, behaviour is identical to earlier
+releases — a single shared pool of `count`. A `workers` key on a master-only
+plugin (`[metrics]`, `[process]`) is ignored with a warning.
+
+!!! warning "Cross-pool jobs need a shared backend"
+    Folk boots the `jobs` plugin in *every* pool so `jobs.push` resolves from an
+    HTTP handler, but it only **consumes** in its own pool. A job pushed from the
+    HTTP pool reaches the consumer pool only through the queue backend, so
+    cross-pool delivery requires **redis or a managed broker** — the
+    `memory`/`embedded` drivers are per-process. Per-worker `folk_worker_*`
+    metrics carry a `pool` label alongside `worker_id`.
+
 !!! note "`liveness_timeout` (runtime liveness)"
     `exec_timeout` only catches a request that runs too long. It can't catch a worker whose **async runtime** has wedged *outside* a request (e.g. a deadlocked runtime whose HTTP listener stopped accepting). With `liveness_timeout` set, each worker's runtime emits a heartbeat every second (independent of PHP and of traffic); if it stalls past the timeout while the process is alive, the master force-recycles the worker. Because the heartbeat is traffic-independent, an **idle worker is never mistaken for a hung one** — leave it `0` (off) or set it generously (tens of seconds). Per-worker `folk_worker_*` metrics (see the metrics plugin) expose the same signal for alerting.
 
@@ -201,14 +231,13 @@ listen = "0.0.0.0:8080"
 access_log = true
 public_dir = "public"   # serve static files from disk before dispatching to PHP
 
-[jobs]
-driver = "redis"
-redis_url = "redis://127.0.0.1:6379"
+[jobs.connections.redis]   # each driver is a connection that nests its queues
+host = "127.0.0.1"
+port = 6379
 
-[[jobs.queues]]
-name = "default"
-concurrency = 4
-max_retries = 3
+  [jobs.connections.redis.queues.default]
+  concurrency = 4
+  max_retries = 3
 
 [grpc]
 listen = "0.0.0.0:50051"

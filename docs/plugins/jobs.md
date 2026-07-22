@@ -1,17 +1,27 @@
 # Jobs Plugin
 
-Background job processing with in-memory or Redis-backed queues.
+Background job processing over a pluggable set of queue backends — from an
+in-memory queue for development to Redis and managed message brokers in
+production.
 
 ## Features
 
-- Three drivers: **memory**, **Redis**, and **embedded** (persistent, pure-Rust redb)
+- **Nine drivers**: **memory**, **Redis**, **embedded** (persistent, pure-Rust
+  redb), and the managed brokers **RabbitMQ**, **AWS SQS**, **NATS/JetStream**,
+  **beanstalkd**, **Apache Kafka** and **Google Cloud Pub/Sub**
 - Feature-gated builds — a build only pulls in the drivers it uses
 - Multiple named queues with independent concurrency
+- Multiple drivers side by side, addressed as `[<connection>.]<queue>`
 - Configurable retry: delay, backoff strategy (exponential / linear / fixed)
 - Job execution timeout
 - Dead letter queue for failed jobs
 - Delayed jobs (scheduled for future execution)
 - Priority queues
+- **Delivery guarantee** — broker drivers hold each message in-flight until the
+  job acks (success) or nacks (terminal failure), so a crashed worker
+  re-delivers (**at-least-once**); memory/redis/embedded are at-most-once
+- Per-plugin worker pool — `[jobs] workers = N` runs a dedicated pool of queue
+  consumers, independent of HTTP concurrency (see *Scaling* below)
 - RPC: `jobs.push` (add job with optional delay), `jobs.stats` (queue depth)
 - Graceful shutdown — in-flight jobs complete before exit
 - Prometheus metrics: pushed, processed, duration, retries, DLQ, active
@@ -105,19 +115,63 @@ connection takes `path` and `durability`.
 
 ## Drivers
 
-| Driver | Build feature | Persistence | Use case |
-|--------|---------------|-------------|----------|
-| `memory` | always on | No — lost on restart | Development, testing |
-| `redis` | `redis` (default) | Yes | Production |
-| `embedded` (redb) | `embedded` (opt-in) | Yes — single file, ACID | Persistent jobs without an external broker |
+| Driver | Build feature | Delivery | Persistence | Use case |
+|--------|---------------|----------|-------------|----------|
+| `memory` | always on | at-most-once | No — lost on restart | Development, testing |
+| `redis` | `redis` (default) | at-most-once | Yes | Production without a broker |
+| `embedded` (redb) | `embedded` (opt-in) | at-most-once | Yes — single file, ACID | Persistent jobs without an external broker |
+| `rabbitmq` | `rabbitmq` (opt-in) | at-least-once | Broker | AMQP 0-9-1; manual ack/nack + prefetch, DLX |
+| `sqs` | `sqs` (opt-in) | at-least-once | Broker | AWS SQS standard + FIFO (`*.fifo`) |
+| `nats` | `nats` (opt-in) | at-least-once | Broker | NATS/JetStream durable pull consumers |
+| `beanstalk` | `beanstalk` (opt-in) | at-least-once | Broker | beanstalkd tubes; native delay + priority |
+| `kafka` | `kafka` (opt-in) | at-least-once | Broker | Kafka topic + consumer group, manual offset commit |
+| `pubsub` | `pubsub` (opt-in) | at-least-once | Broker | Google Cloud Pub/Sub pull subscription |
 
 Drivers are compiled into the build via `folk.build.toml` (default features are
-`["memory", "redis"]`; add `"embedded"` to `features`). A connection whose
-driver is not compiled in makes the server **fail fast at startup** with an
-actionable message.
+`["memory", "redis"]`; add any of `"embedded"`, `"rabbitmq"`, `"sqs"`, `"nats"`,
+`"beanstalk"`, `"kafka"`, `"pubsub"` to `features`). A connection whose driver
+is not compiled in makes the server **fail fast at startup** with an actionable
+message.
 
-> Broker-backed drivers (RabbitMQ, Kafka, NATS, SQS, Pub/Sub, Beanstalk) are on
-> the roadmap and not yet shipped.
+> The official pre-built `folk.so` on the Releases page ships **every** driver
+> compiled in, so `pie install` users can select any backend through config
+> alone — no custom build needed.
+
+The managed-broker drivers keep each message in-flight until the job acks
+(success) or nacks (terminal failure), so a crashed worker gets the job
+re-delivered by the broker (**at-least-once**). `memory`, `redis` and `embedded`
+dequeue on receipt (**at-most-once**). Broker-specific behaviour (native delay,
+dead-lettering, ack windows) is documented per connection in the
+[configuration reference](../reference.md).
+
+## Scaling (dedicated consumer pool)
+
+By default the jobs plugin runs in the shared worker pool alongside HTTP. To run
+a **dedicated** pool of queue consumers, independent of HTTP concurrency, add
+`workers = N` to the `[jobs]` section:
+
+```toml
+[workers]
+count = 4        # shared pool
+
+[http]
+workers = 8      # 8 HTTP-only processes
+
+[jobs]
+workers = 2      # 2 dedicated queue consumers
+```
+
+Because Folk's Rust↔PHP RPC is in-process, the jobs plugin is also booted in
+*every other* pool so `jobs.push` resolves when you dispatch from an HTTP
+handler — but it only **consumes** in its own pool. This is the classic "many
+web workers, few queue consumers" layout.
+
+> **Cross-pool delivery needs a shared backend.** A job pushed from the HTTP
+> pool reaches the consumer pool only through the queue backend, so it requires
+> **redis or a managed broker**. The `memory` and `embedded` drivers are
+> per-process, so a dedicated `jobs` pool using them can't receive jobs pushed
+> from another pool (the server logs a startup warning). Per-worker metrics
+> carry a `pool` label alongside `worker_id`.
 
 ## Delayed jobs
 
