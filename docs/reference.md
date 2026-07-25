@@ -276,7 +276,9 @@ h2c = false                            # HTTP/2 cleartext (without TLS)
 # =============================================================================
 [grpc]
 listen = "0.0.0.0:50051"              # Listening address
-proto = []                             # Proto files for reflection (empty = no reflection)
+proto = []                             # Proto files/dirs for reflection + transcoding (empty = no reflection)
+transcode = false                      # Decode proto↔native so PHP handlers use typed DTOs (default: raw passthrough)
+# descriptor_set = "all.pb"            # Optional prebuilt FileDescriptorSet merged into the pool (for Any, etc.)
 max_recv_message_size = "4mb"          # Max incoming message size
 max_send_message_size = "4mb"          # Max outgoing message size
 # timeout = "30s"                      # Server-wide RPC timeout (omit = no timeout)
