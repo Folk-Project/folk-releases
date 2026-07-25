@@ -242,6 +242,7 @@ port = 6379
 [grpc]
 listen = "0.0.0.0:50051"
 proto = ["proto/service.proto"]
+transcode = true                       # typed DTO handlers instead of raw bytes (default: false)
 max_recv_message_size = "4mb"
 timeout = "30s"
 

@@ -415,7 +415,7 @@ framework's error handling as-is.
   ```php
   use Folk\Sdk\Grpc\Context;
 
-  public function GetUser(Context $context, GetUserRequest $req): ?UserReply
+  public function GetUser(GetUserRequest $request, Context $context): ?UserReply
   {
       if (!$found) {
           $context->setStatus(5, 'user not found');   // canonical gRPC NOT_FOUND
@@ -425,7 +425,10 @@ framework's error handling as-is.
   }
   ```
 
-  See the [gRPC plugin docs](plugins/grpc.md#status-codes) for the full code table.
+  With `[grpc] transcode = true`, `GetUserRequest`/`UserReply` are generated DTOs
+  (`php artisan folk:grpc:generate` or `vendor/bin/folk-grpc-gen`); see the
+  [gRPC plugin docs](plugins/grpc.md#typed-proto-dx-no-protoc). The full status
+  code table is [there too](plugins/grpc.md#status-codes).
 
 ### Fatal errors
 
