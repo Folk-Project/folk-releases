@@ -1,5 +1,62 @@
 # Release Notes
 
+### gRPC client — call upstream services from PHP, no protoc ([#88](https://github.com/Folk-Project/folk-releases/issues/88))
+
+**Call external gRPC services from PHP with typed DTOs — the client counterpart
+to #87, still no `protoc` / `ext-grpc`.**
+
+Declare a named upstream and point it at its `.proto`; the transport (address,
+TLS, deadline, retries) stays in `folk.toml`, PHP never sees an endpoint:
+
+```toml
+[grpc.clients.catalog]
+proto = ["proto/clients/catalog.proto"]
+address = "catalog.svc:50051"   # or a list → round-robin load balancing
+deadline = "5s"
+```
+
+Generate a typed client stub (`--client` on the same generator) and call it —
+DTO in, DTO out:
+
+```php
+$catalog = Folk::grpcClient(CatalogClient::class);
+$resp = $catalog->Search(new SearchRequest(query: 'phone'));   // DTO → DTO
+foreach ($resp->products as $p) { echo $p->title; }
+```
+
+**Highlights**
+
+- The phase-87 transcoding runs **in reverse** — Rust encodes the request and
+  decodes the response against the upstream's descriptor pool. Each
+  `[grpc.clients.<name>]` has its **own** proto/pool (upstreams may reuse message
+  names without colliding).
+- Full type map on request *and* response (repeated/map/enum/bytes/oneof/
+  well-known), shared with the server DTOs.
+- Per-call **deadline** (`->withDeadline()`, propagated as `grpc-timeout`; expiry →
+  `DEADLINE_EXCEEDED(4)`), outbound **metadata** (`->withMetadata()`), **retries**
+  on transient `UNAVAILABLE` only (never a business status), and client-side
+  **load balancing** across multiple addresses.
+- Upstream **TLS/mTLS**, distinct from the server listener.
+- Errors surface as `Folk\Sdk\Grpc\GrpcException` (`$e->status()`): business status
+  passed through; unreachable upstream → `UNAVAILABLE(14)`.
+- **Client-only deployments**: omit `[grpc] listen` to make outbound calls without
+  binding a server.
+- **Synchronous** call model (worker blocks on the RPC bridge, like `jobs.push`) —
+  always set a deadline; channels are pooled per worker.
+
+`folk-api` and `folk-builder` are unchanged. Unary only; streaming is tracked in
+[#32](https://github.com/Folk-Project/folk-releases/issues/32).
+
+Validated end-to-end on **all four** smoke stands (Laravel, Symfony, Spiral, Yii3):
+DTO round-trip across the full type map, business status → exception, unreachable
+upstream → `UNAVAILABLE`, per-call deadline, outbound metadata, and client-only
+mode — each calling a shared upstream Folk gRPC server.
+
+Ships in **folk-plugin-grpc 0.5.0** (crates.io), **folk/sdk** and **folk/laravel**
+(Packagist), prebuilt `.so` build-manifest bumped.
+
+---
+
 ### gRPC proto DX — transcoding + DTO generation, no protoc ([#87](https://github.com/Folk-Project/folk-releases/issues/87))
 
 **Work with protobuf from PHP using typed DTOs — on the request *and* the

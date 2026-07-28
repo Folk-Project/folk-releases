@@ -275,7 +275,8 @@ h2c = false                            # HTTP/2 cleartext (without TLS)
 # gRPC Plugin
 # =============================================================================
 [grpc]
-listen = "0.0.0.0:50051"              # Listening address
+listen = "0.0.0.0:50051"              # Listening address. OPTIONAL: omit it for a client-only
+                                       # deployment (only [grpc.clients.*], no server bound).
 proto = []                             # Proto files/dirs for reflection + transcoding (empty = no reflection)
 transcode = false                      # Decode proto↔native so PHP handlers use typed DTOs (default: raw passthrough)
 # descriptor_set = "all.pb"            # Optional prebuilt FileDescriptorSet merged into the pool (for Any, etc.)
@@ -294,6 +295,27 @@ compression = false                    # Enable gzip compression
 # [grpc.tls]
 # cert = "/path/to/cert.pem"
 # key = "/path/to/key.pem"
+
+# --- gRPC clients: call upstream services from PHP (phase 88) -----------------
+# Each [grpc.clients.<name>] is a named upstream. Its own `proto` builds its own
+# descriptor pool (isolated per upstream). PHP calls it via a generated
+# {Service}Client stub (folk:grpc:generate --client <name> / folk-grpc-gen
+# --client <name>) and Folk::grpcClient(Stub::class). No protoc, no ext-grpc.
+# A config with only [grpc.clients.*] and no [grpc] listen is a valid client-only
+# deployment.
+# [grpc.clients.catalog]
+# proto = ["proto/clients/catalog.proto"]   # This upstream's contract (files/dirs)
+# address = "catalog.svc:50051"             # host:port; or a list ["a:1","b:2"] → round-robin LB
+# deadline = "5s"                           # Default per-call deadline (a call may override it)
+# descriptor_set = "catalog.pb"             # Optional prebuilt FDS merged into this client's pool
+# [grpc.clients.catalog.retries]            # Retry ONLY transient (UNAVAILABLE), never a business status
+# max_attempts = 3
+# backoff = "100ms"                         # Exponential: backoff * 2^(n-1)
+# [grpc.clients.catalog.tls]                # Upstream TLS/mTLS (distinct from the server listener)
+# ca = "/path/to/ca.pem"                    # CA to verify the upstream (omit = system roots)
+# cert = "/path/to/client.pem"              # Client cert for mTLS (with key)
+# key = "/path/to/client-key.pem"
+# domain = "catalog.internal"               # SNI / cert name override
 
 # =============================================================================
 # Metrics Plugin

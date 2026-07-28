@@ -219,6 +219,19 @@ proto = []
 # Example with proto files:
 # proto = ["proto/greeter.proto", "proto/orders.proto"]
 
+# gRPC clients — call upstream services from PHP (phase 88). Each named upstream
+# has its own proto contract; PHP calls it via a generated {Service}Client stub
+# and Folk::grpcClient(). Omit [grpc] listen above for a client-only deployment.
+# [grpc.clients.catalog]
+# proto = ["proto/clients/catalog.proto"]
+# address = "catalog.svc:50051"          # or ["a:50051", "b:50051"] → round-robin LB
+# deadline = "5s"
+# [grpc.clients.catalog.retries]         # transient (UNAVAILABLE) only
+# max_attempts = 3
+# backoff = "100ms"
+# [grpc.clients.catalog.tls]             # upstream TLS/mTLS
+# ca = "/etc/ssl/ca.pem"
+
 # -----------------------------------------------------------------------------
 # Metrics Plugin
 # -----------------------------------------------------------------------------

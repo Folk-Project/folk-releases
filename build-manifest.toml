@@ -58,15 +58,20 @@
 # folk-builder 0.2.17 conditionally codegens the `folk_grpc_descriptors` php
 # function when the grpc plugin is in the build. The .so must be rebuilt with
 # builder 0.2.17 and grpc "0.4.*". folk-api/folk-ext unchanged.
+#
+# Phase 88 (#88): gRPC client — call upstream services from PHP. folk-plugin-grpc
+# 0.5.0 adds the tonic client transport ([grpc.clients.*], grpc.client.call), the
+# first cdylib build to include it. The .so must be rebuilt with grpc "0.5.*".
+# folk-api/folk-ext/folk-builder unchanged.
 [release]
-version = "0.2.8"
+version = "0.2.9"
 
 [builder]
 version = "0.2.17"
 
 [plugins]
 folk-plugin-http = "0.5.*"
-folk-plugin-grpc = "0.4.*"
+folk-plugin-grpc = "0.5.*"
 folk-plugin-metrics = "0.3.*"
 folk-plugin-process = "0.3.*"
 

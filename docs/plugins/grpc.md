@@ -6,6 +6,7 @@ Native gRPC server with reflection and health checking. Built on [tonic](https:/
 
 - Unary gRPC calls with dispatch to PHP workers
 - **Typed proto DX**: proto↔native transcoding + DTO/interface generation, no protoc ([see below](#typed-proto-dx-no-protoc))
+- **gRPC client**: call upstream services from PHP with typed DTOs, no protoc — deadlines, retries, load balancing, TLS/mTLS ([see below](#grpc-client--call-upstream-services-no-protoc))
 - Server reflection via proto files (grpcurl, Postman auto-discovery)
 - Automatic proto import resolution
 - gRPC Health Checking Protocol (grpc.health.v1)
@@ -20,8 +21,7 @@ Native gRPC server with reflection and health checking. Built on [tonic](https:/
 
 ## Planned
 
-- Server-side streaming
-- Per-RPC timeouts
+- Streaming (client / server / bidirectional) — [#32](https://github.com/Folk-Project/folk-releases/issues/32)
 
 ## Configuration
 
@@ -283,6 +283,89 @@ An **uncaught exception** in a handler is a fatal error: the call fails with
 `INTERNAL (13)`. The exception class and stack trace are included in the status
 message only in dev mode (`[dev] watch`); in production the client gets a
 generic message and the full detail is logged server-side.
+
+## gRPC client — call upstream services (no protoc)
+
+Folk can also **call** external gRPC services, with the same typed DTO-in /
+DTO-out ergonomics and no `protoc` / `ext-grpc`. The transcoding machinery runs
+in reverse: PHP hands Folk a request DTO, Rust encodes it against the upstream's
+descriptor, makes the unary call, and decodes the response back into a DTO.
+
+### 1. Declare the upstream
+
+Each `[grpc.clients.<name>]` is a named upstream with its **own** proto contract
+(its own descriptor pool — two upstreams may reuse message names without
+colliding). The transport (address, TLS, deadline, retries) lives here; PHP never
+sees an endpoint.
+
+```toml
+[grpc.clients.catalog]
+proto = ["proto/clients/catalog.proto"]
+address = "catalog.svc:50051"   # or ["a:50051", "b:50051"] → round-robin load balancing
+deadline = "5s"                 # default per-call deadline
+
+[grpc.clients.catalog.retries]  # transient (UNAVAILABLE) only — never a business status
+max_attempts = 3
+backoff = "100ms"
+
+[grpc.clients.catalog.tls]      # optional upstream TLS/mTLS
+ca = "/etc/ssl/ca.pem"
+# cert = "/etc/ssl/client.pem"  # + key for mTLS
+# domain = "catalog.internal"   # SNI override
+```
+
+No `[grpc] listen`? That's fine — a config with only `[grpc.clients.*]` is a
+valid **client-only** deployment (Folk makes outbound calls, binds no server).
+
+### 2. Generate the client stub
+
+Same generator as the server side, `--client` flag selects the stub:
+
+- Laravel: add the upstream under `folk.grpc.clients` in `config/folk.php`, then
+  `php artisan folk:grpc:generate` (emits server contracts **and** every client
+  stub), or `--client=catalog` for just one.
+- Any framework:
+  `vendor/bin/folk-grpc-gen --client catalog --out app/Grpc/Clients/Catalog --namespace 'App\Grpc\Clients\Catalog' proto/clients/catalog.proto`
+
+This emits a `CatalogClient` (one typed method per unary RPC) plus its DTOs/enums.
+
+### 3. Call it
+
+```php
+use Folk\Sdk\Folk;
+use Folk\Sdk\Grpc\GrpcException;
+
+$catalog = Folk::grpcClient(CatalogClient::class);            // resolves [grpc.clients.catalog]
+// or Folk::grpcClient(CatalogClient::class, 'other:50051');  // endpoint override
+
+$resp = $catalog->Search(new SearchRequest(query: 'phone', page: 1));  // DTO in → DTO out
+foreach ($resp->products as $p) {
+    echo $p->title;
+}
+```
+
+Per-call metadata and deadline are fluent (immutable — each returns a new client):
+
+```php
+$catalog
+    ->withMetadata('authorization', "Bearer {$token}")
+    ->withDeadline(0.5)
+    ->Search($req);
+```
+
+A non-OK result throws `Folk\Sdk\Grpc\GrpcException` (`$e->status()` is a canonical
+gRPC code): a business status the upstream set (e.g. `NOT_FOUND(5)`), an expired
+deadline (`DEADLINE_EXCEEDED(4)`), or an unreachable upstream (`UNAVAILABLE(14)`).
+
+### Worker-blocking model
+
+The call is **synchronous**: the PHP worker blocks on the RPC bridge until the
+upstream responds (the same competing-consumers model as `jobs.push`). A slow
+upstream ties up a worker, so **always set a deadline** and size your worker pool
+accordingly. Channels are pooled per worker (lazy, kept alive across requests).
+
+> Unary only in this release. Streaming (client/server/bidirectional) is tracked
+> in [#32](https://github.com/Folk-Project/folk-releases/issues/32).
 
 ## Testing
 
