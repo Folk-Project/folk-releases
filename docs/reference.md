@@ -303,6 +303,10 @@ compression = false                    # Enable gzip compression
 # --client <name>) and Folk::grpcClient(Stub::class). No protoc, no ext-grpc.
 # A config with only [grpc.clients.*] and no [grpc] listen is a valid client-only
 # deployment.
+# STREAMING (phase 88b): a streaming RPC on the upstream reuses this SAME config —
+# no extra keys. The stub extends GrpcStreamClient; drain a server-stream with
+# foreach, feed a client-stream with an iterable, or do both for bidi. `deadline`
+# bounds the whole stream (→ DEADLINE_EXCEEDED). See plugins/grpc.md#streaming-32.
 # [grpc.clients.catalog]
 # proto = ["proto/clients/catalog.proto"]   # This upstream's contract (files/dirs)
 # address = "catalog.svc:50051"             # host:port; or a list ["a:1","b:2"] → round-robin LB

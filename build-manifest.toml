@@ -63,15 +63,22 @@
 # 0.5.0 adds the tonic client transport ([grpc.clients.*], grpc.client.call), the
 # first cdylib build to include it. The .so must be rebuilt with grpc "0.5.*".
 # folk-api/folk-ext/folk-builder unchanged.
+#
+# Phase 88b (#32): gRPC streaming. folk-plugin-grpc 0.6.0 adds the streaming
+# transport (server-streaming server + server/client/bidi streaming client);
+# folk-ext 0.6.1 adds the folk_stream_* bridge + folk_grpc_yield; folk-api 0.3.3
+# adds the (additive) streaming contract; folk-builder 0.2.18 codegens the
+# streaming host functions when grpc is present. The .so must be rebuilt with
+# builder 0.2.18 and grpc "0.6.*" (pulls folk-ext 0.6.1 / folk-api 0.3.3).
 [release]
-version = "0.2.9"
+version = "0.2.10"
 
 [builder]
-version = "0.2.17"
+version = "0.2.18"
 
 [plugins]
 folk-plugin-http = "0.5.*"
-folk-plugin-grpc = "0.5.*"
+folk-plugin-grpc = "0.6.*"
 folk-plugin-metrics = "0.3.*"
 folk-plugin-process = "0.3.*"
 

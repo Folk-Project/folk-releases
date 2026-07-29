@@ -7,6 +7,7 @@ Native gRPC server with reflection and health checking. Built on [tonic](https:/
 - Unary gRPC calls with dispatch to PHP workers
 - **Typed proto DX**: proto↔native transcoding + DTO/interface generation, no protoc ([see below](#typed-proto-dx-no-protoc))
 - **gRPC client**: call upstream services from PHP with typed DTOs, no protoc — deadlines, retries, load balancing, TLS/mTLS ([see below](#grpc-client--call-upstream-services-no-protoc))
+- **Streaming**: server-streaming handler (`yield`); server/client/bidi streaming client (`foreach`/iterable) with typed DTOs, deadlines, cancellation ([see below](#streaming-32))
 - Server reflection via proto files (grpcurl, Postman auto-discovery)
 - Automatic proto import resolution
 - gRPC Health Checking Protocol (grpc.health.v1)
@@ -21,7 +22,7 @@ Native gRPC server with reflection and health checking. Built on [tonic](https:/
 
 ## Planned
 
-- Streaming (client / server / bidirectional) — [#32](https://github.com/Folk-Project/folk-releases/issues/32)
+- Client-streaming / bidi on the **server** side (a handler receiving a request stream) — [#32](https://github.com/Folk-Project/folk-releases/issues/32); server-streaming server + all client streaming shipped
 
 ## Configuration
 
@@ -364,8 +365,96 @@ upstream responds (the same competing-consumers model as `jobs.push`). A slow
 upstream ties up a worker, so **always set a deadline** and size your worker pool
 accordingly. Channels are pooled per worker (lazy, kept alive across requests).
 
-> Unary only in this release. Streaming (client/server/bidirectional) is tracked
-> in [#32](https://github.com/Folk-Project/folk-releases/issues/32).
+## Streaming ([#32](https://github.com/Folk-Project/folk-releases/issues/32))
+
+Folk streams gRPC with the same no-`protoc` typed-DTO model, over a dedicated
+async bridge (the unary path is strictly one-in-one-out). A streaming RPC is
+declared in `.proto` the usual way; the generator emits the streaming shapes.
+
+**This release ships:**
+
+- **server-streaming server** — a Folk handler *yields* a stream of responses;
+- **server / client / bidirectional streaming client** — PHP drains or feeds a
+  stream over a `foreach` / iterable.
+
+Client-streaming and bidi on the **server** side (a Folk handler *receiving* a
+request stream) are not in this release — the client already does all three.
+
+### Server-streaming handler (server)
+
+The generated interface types a server-streaming method as `iterable`; the
+handler `yield`s response DTOs, one gRPC message per `yield`:
+
+```php
+use Folk\Sdk\Grpc\Context;
+
+class PricesService implements PricesInterface
+{
+    /** @return iterable<PriceUpdate> */
+    public function Watch(WatchRequest $request, Context $context): iterable
+    {
+        foreach ($this->feed($request->topic) as $tick) {
+            yield new PriceUpdate(symbol: $tick->symbol, price: $tick->price);
+        }
+        // A business status set here (or mid-stream) ends the stream with that code:
+        // $context->setStatus(9, 'feed closed');
+    }
+}
+```
+
+Registration is identical to a unary handler (`folk.grpc.services`). A `return`
+(no `yield`) is a valid empty stream.
+
+### Streaming client
+
+The generated `{Service}Client` extends `GrpcStreamClient` and exposes one typed
+method per streaming RPC. Construct it with `Folk::grpcClient()` exactly like the
+unary client; `withMetadata()` / `withDeadline()` apply.
+
+```php
+$prices = Folk::grpcClient(PricesClient::class);
+
+// server-streaming: one request → a lazy stream of responses
+foreach ($prices->Watch(new WatchRequest(topic: 'FScoin')) as $update) {
+    echo "{$update->symbol} {$update->price}\n";   // arrives one message at a time
+}
+
+// client-streaming: a stream of requests → one response
+$summary = $uploader->Upload((function () {
+    foreach ($chunks as $c) {
+        yield new UploadChunk(data: $c);
+    }
+})());
+
+// bidirectional: a stream of requests ↔ a stream of responses
+foreach ($chat->Converse($outgoing) as $incoming) {
+    echo $incoming->text;
+}
+```
+
+A non-OK trailing status (business status, or a transport failure) throws
+`GrpcException` out of the `foreach`, after any messages already delivered.
+
+### Deadlines and cancellation
+
+- **Deadline** — `withDeadline($s)` (or the client's default) bounds the **whole**
+  stream. If it elapses before the stream finishes, the `foreach` throws
+  `DEADLINE_EXCEEDED(4)`. A stream with no deadline runs until it completes or the
+  consumer stops.
+- **Cancellation** — `break` out of the `foreach` (or let the generator go out of
+  scope) and Folk cancels the RPC upstream.
+
+### Worker-blocking model (important)
+
+A stream **holds its worker for its entire lifetime**: while PHP is parked in
+`foreach`/`recv`, that worker handles nothing else (the competing-consumers model,
+same as unary but for the stream's whole duration). Long-lived streams can exhaust
+a small pool — **set deadlines** and size `[grpc] workers` (or `[workers] count`)
+for the number of concurrent streams you expect. Backpressure is built in: a slow
+consumer blocks on a bounded channel rather than buffering the stream in memory.
+
+> v1 bidi on a single worker is **serialized** (all requests are sent, then
+> responses are drained) — true concurrent bidi is a later increment.
 
 ## Testing
 
