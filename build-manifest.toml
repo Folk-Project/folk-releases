@@ -1,84 +1,20 @@
 # Folk Extension Build Manifest
 #
-# Defines which versions of folk-builder and plugins to use
-# when building pre-compiled folk.so binaries.
-#
-# CI reads this file, generates folk.build.toml, and runs folk-builder.
+# Which versions of folk-builder and the plugins to use when building the
+# pre-compiled folk.so. CI reads this file, generates folk.build.toml, and runs
+# folk-builder. The .so is built against PHP **NTS** (Dockerfile.base: php:8.x,
+# not -zts).
 #
 # Plugins may be declared in two forms:
-#   * string form:  folk-plugin-http = "0.4.*"          (default features)
-#   * table form:   [plugins.folk-plugin-jobs]          (with Cargo features)
-#                   version  = "0.4.*"
+#   * string form:  folk-plugin-http = "0.5.*"     (default features)
+#   * table form:   [plugins.folk-plugin-jobs]     (with Cargo features)
+#                   version  = "0.5.*"
 #                   features = ["redis", "embedded"]
-# Table-form entries MUST come after all string-form entries (TOML rule).
+#   Table-form entries MUST come after all string-form entries (TOML rule).
+#
+# Bump [release] on every rebuild. Per-release history is NOT kept here — see
+# RELEASE_NOTES.md and folk-spec (phases table) / git log.
 
-# Phase 79 (fork-after-warm, folk-api 0.3 breaking major): the .so is built
-# against PHP **NTS** (Dockerfile.base: php:8.x, not -zts). Every plugin bumps a
-# major because it depends on the new folk-api 0.3 plugin contract. Exact patch
-# versions are finalized at publish; these are the breaking-major targets.
-#
-# Phase 80 (#82): folk-plugin-http 0.5.1 adds `[http] public_dir` static-file
-# serving. Picked up by the existing "0.5.*" constraint — the .so just needs a
-# rebuild (this release bump).
-#
-# Phase 81 (#80): lazy plugin loading — folk-builder 0.2.12 generates conditional
-# plugin registration (a plugin loads only when its folk.toml section is present).
-# Plugin crate versions unchanged; the .so must be rebuilt with builder 0.2.12.
-#
-# folk-builder 0.2.13: the generated extension crate is now stamped with the
-# [release] version below, so phpversion("folk") reports it (was always 0.1.0).
-#
-# Phase 82 (#84 + #85.2): worker process-group isolation (setpgid + killpg),
-# pcntl_fork safeguard, destroy_timeout escalation — folk-core/folk-ext 0.4.1.
-#
-# Phase 83 (#85 remainder): supervisor resilience — per-worker folk_worker_*
-# metrics, [workers] liveness_timeout heartbeat recycle, max_jobs/ttl honoured in
-# the fork model + staggered recycle — folk-core/folk-ext 0.5.0. No plugin crate
-# changed; the .so needs a rebuild against folk-ext 0.5.0. folk-ext 0.5 is a
-# minor bump, so folk-builder 0.2.14 bumps its codegen pin "0.4"→"0.5" (^0.4
-# would exclude 0.5.0) — [builder] below is 0.2.14 for this reason.
-#
-# Phase 84 (#86): auth/session leak + multi Set-Cookie. folk-plugin-http 0.5.2
-# emits repeated headers; folk-api 0.3.1 / folk-ext 0.5.1 carry response headers
-# as ordered pairs (streamed path); folk-builder 0.2.15 regenerates folk_write_head
-# accordingly. Plugin constraint "0.5.*" already covers 0.5.2 — the .so must be
-# rebuilt with builder 0.2.15 (which pulls folk-ext 0.5.1 / folk-api 0.3.1).
-#
-# Phase 85 (#81): per-plugin worker pools + cross-pool jobs. `[http].workers` /
-# `[jobs].workers` scale subsystems independently (folk-core/folk-ext 0.6.0,
-# folk-api 0.3.2 additive — PoolContext + runs_in_every_pool). folk-plugin-jobs
-# 0.7.0 is booted in every pool for jobs.push and consumes only in its owning
-# pool (cross-pool jobs need redis/a broker). folk-builder 0.2.16 emits the
-# per-plugin workers map and pins codegen folk-ext "0.5"→"0.6" (^0.5 excludes
-# 0.6.0). http/grpc/metrics/process unchanged; the .so must be rebuilt with
-# builder 0.2.16 (which pulls folk-ext 0.6.0 / folk-api 0.3.2).
-#
-# Phase 87 (#87): gRPC proto DX — proto↔native transcoding + DTO generation.
-# folk-plugin-grpc 0.4.0 adds `[grpc] transcode` and the descriptor-export path;
-# folk-builder 0.2.17 conditionally codegens the `folk_grpc_descriptors` php
-# function when the grpc plugin is in the build. The .so must be rebuilt with
-# builder 0.2.17 and grpc "0.4.*". folk-api/folk-ext unchanged.
-#
-# Phase 88 (#88): gRPC client — call upstream services from PHP. folk-plugin-grpc
-# 0.5.0 adds the tonic client transport ([grpc.clients.*], grpc.client.call), the
-# first cdylib build to include it. The .so must be rebuilt with grpc "0.5.*".
-# folk-api/folk-ext/folk-builder unchanged.
-#
-# Phase 88b (#32): gRPC streaming. folk-plugin-grpc 0.6.0 adds the streaming
-# transport (server-streaming server + server/client/bidi streaming client);
-# folk-ext 0.6.1 adds the folk_stream_* bridge + folk_grpc_yield; folk-api 0.3.3
-# adds the (additive) streaming contract; folk-builder 0.2.18 codegens the
-# streaming host functions when grpc is present. The .so must be rebuilt with
-# builder 0.2.18 and grpc "0.6.*" (pulls folk-ext 0.6.1 / folk-api 0.3.3).
-#
-# Phase 92 (#89): single source of truth for PHP host functions. folk-ext 0.6.2
-# adds `register_core_functions` (all 20 core host fns registered in one place,
-# previously duplicated as folk-builder string codegen); folk-plugin-grpc 0.7.0
-# owns `folk_grpc_descriptors` behind a new opt-in `php-ext` feature; folk-builder
-# 0.2.19 drops the string bodies — its get_module calls register_core_functions
-# and, when grpc is present, the plugin's register_php_functions (php-ext enabled
-# automatically, no manifest feature needed). Same PHP function surface as before;
-# the .so must be rebuilt with builder 0.2.19 and grpc "0.7.*" (pulls folk-ext 0.6.2).
 [release]
 version = "0.2.11"
 
