@@ -70,15 +70,24 @@
 # adds the (additive) streaming contract; folk-builder 0.2.18 codegens the
 # streaming host functions when grpc is present. The .so must be rebuilt with
 # builder 0.2.18 and grpc "0.6.*" (pulls folk-ext 0.6.1 / folk-api 0.3.3).
+#
+# Phase 92 (#89): single source of truth for PHP host functions. folk-ext 0.6.2
+# adds `register_core_functions` (all 20 core host fns registered in one place,
+# previously duplicated as folk-builder string codegen); folk-plugin-grpc 0.7.0
+# owns `folk_grpc_descriptors` behind a new opt-in `php-ext` feature; folk-builder
+# 0.2.19 drops the string bodies — its get_module calls register_core_functions
+# and, when grpc is present, the plugin's register_php_functions (php-ext enabled
+# automatically, no manifest feature needed). Same PHP function surface as before;
+# the .so must be rebuilt with builder 0.2.19 and grpc "0.7.*" (pulls folk-ext 0.6.2).
 [release]
-version = "0.2.10"
+version = "0.2.11"
 
 [builder]
-version = "0.2.18"
+version = "0.2.19"
 
 [plugins]
 folk-plugin-http = "0.5.*"
-folk-plugin-grpc = "0.6.*"
+folk-plugin-grpc = "0.7.*"
 folk-plugin-metrics = "0.3.*"
 folk-plugin-process = "0.3.*"
 
