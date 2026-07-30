@@ -30,7 +30,10 @@ Accepts HTTP connections and dispatches requests to PHP workers. Built on [hyper
 listen = "0.0.0.0:8080"        # Listening address
 read_timeout = "10s"            # Max time to read request body
 write_timeout = "30s"           # Max time to write response (returns 504 on timeout)
+shutdown_timeout = "30s"        # Grace period to drain in-flight connections on shutdown (distinct from [server] shutdown_timeout)
 max_request_size = "10mb"       # Max request body size ("10mb", "512kb", or integer bytes)
+stream_request_body = false     # Stream the body to PHP instead of buffering it — see streaming docs
+stream_request_body_paths = []  # Restrict streaming to these paths ("*" suffix = prefix match); empty = every path
 access_log = false              # Enable HTTP access logging
 trusted_proxies = []            # Trusted CIDR subnets for X-Forwarded-For
 h2c = false                     # Enable HTTP/2 cleartext (without TLS)
@@ -139,6 +142,7 @@ lua = "hooks/rate_limit.lua"
 mode = "sync"           # "sync" (critical path) | "async" (fire-and-forget)
 timeout_ms = 5          # sync only: abort hook after N ms; default 5
 on_error = "fail_open"  # "fail_open" (skip + WARN) | "fail_closed" (→ 500)
+required = false        # true → a missing script or compile error ABORTS startup
 ```
 
 Multiple `[[http.hooks]]` entries are allowed. On each event, all `sync` hooks run first (in declaration order), then all `async` hooks fire-and-forget. A short-circuiting sync hook stops subsequent sync hooks and PHP dispatch; async hooks still run with `ctx.short_circuited = true`.
@@ -188,7 +192,7 @@ ctx.extra["trace_start"] = "1"
 - `on_error = "fail_open"` (default) — if the Lua script errors, log WARN and continue pipeline.
 - `on_error = "fail_closed"` — if the Lua script errors, return HTTP 500. Use for security-critical hooks (auth, API-key check) where a failing script must not silently pass requests through.
 
-If a script file is missing or has a syntax error at startup, the hook is skipped with WARN and the server starts normally.
+If a script file is missing or has a syntax error at startup, the default is to skip the hook with a WARN and start the server normally. Set `required = true` on the hook to make that a hard error instead — startup aborts. Use it for security-critical hooks (auth, rate limiting) that must never be silently skipped.
 
 ## Request ID
 

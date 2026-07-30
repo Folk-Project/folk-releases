@@ -136,10 +136,8 @@ $id = folk_request_id();
 
 ### `folk_is_worker_thread(): bool`
 
-**Obsolete (phase 79).** Folk no longer uses worker threads — workers are
-forked processes, and the framework is bootstrapped once in the master before
-the fork. The function remains for backward compatibility but is no longer a
-meaningful branch; new code should not depend on it.
+**Deprecated no-op.** Kept for backward compatibility only — it always returns
+the same value and is not a meaningful branch. New code should not depend on it.
 
 ### `folk_call(string $method, string $payload): string`
 

@@ -2,7 +2,7 @@
 
 **High-performance PHP application server powered by Rust.**
 
-Folk replaces nginx + php-fpm with a single binary that handles HTTP, gRPC, background jobs, metrics, and managed processes — all with zero-copy communication between Rust and PHP.
+Folk is a Rust-powered PHP extension that turns the PHP interpreter into an application server. A single process handles HTTP, gRPC, background jobs, metrics, and managed processes — replacing the nginx + php-fpm stack — with zero-copy communication between Rust and PHP.
 
 ## Documentation
 

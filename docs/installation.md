@@ -2,8 +2,8 @@
 
 ## Requirements
 
-- PHP 8.2+ (**NTS** — non-thread-safe; ZTS is no longer required). Folk forks
-  worker processes, so multi-worker needs no thread safety.
+- PHP 8.2+ — the standard **NTS** (non-thread-safe) build. Folk forks worker
+  processes, so multi-worker needs no thread safety.
 - Linux x86_64/aarch64 or macOS Apple Silicon
 
 ## Via PIE (recommended)

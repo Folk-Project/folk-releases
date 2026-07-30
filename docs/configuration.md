@@ -18,7 +18,6 @@ The pattern is `FOLK_{SECTION}__{FIELD}` — single underscore after `FOLK`, dou
 
 ```toml
 [server]
-rpc_socket = "/tmp/folk.sock"     # Admin RPC Unix socket path
 shutdown_timeout = "30s"          # Graceful shutdown timeout
 ```
 
@@ -28,11 +27,11 @@ shutdown_timeout = "30s"          # Graceful shutdown timeout
 [workers]
 script = "vendor/bin/folk-worker"  # PHP worker script
 php = "php"                        # PHP binary path
-count = 4                          # Worker processes the master forks (NTS)
+count = 4                          # Worker processes the master forks
 max_jobs = 1000                    # Recycle after N requests (0 = never)
 ttl = "3600s"                      # Recycle after this lifetime
 exec_timeout = "30s"               # Per-request HARD deadline (watchdog kills + respawns)
-max_memory_mb = 256                # Recycle a worker over this RSS (omit = disabled)
+max_memory_mb = 256                # Recycle a worker over this RSS (example; omit = disabled, the default)
 boot_timeout = "30s"               # Worker boot timeout
 destroy_timeout = "10s"            # SIGTERM → wait → SIGKILL a worker that won't recycle
 liveness_timeout = "0s"            # Force-recycle a worker whose runtime stalls (0 = off)
@@ -189,8 +188,8 @@ the log. An **empty** section enables the plugin with its defaults:
 [metrics]   # empty section — metrics enabled with default settings
 ```
 
-This lets you compile one binary with every plugin and switch each on or off purely through
-config. A config with only `[http]` runs an HTTP-only server; jobs, gRPC, metrics and process
+This lets you build one extension with every plugin compiled in and switch each on or off
+purely through config. A config with only `[http]` runs an HTTP-only server; jobs, gRPC, metrics and process
 stay silent. There is no `enabled = false` flag — simply omit the section to disable a plugin.
 
 Omitting `[http]` is allowed too (e.g. a jobs-only or gRPC-only server); the server then

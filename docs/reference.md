@@ -39,7 +39,7 @@ max_jobs = 1000                        # Recycle worker after N requests (0 = ne
 ttl = "3600s"                          # Recycle worker after this lifetime
 exec_timeout = "30s"                   # Per-request HARD deadline: a watchdog kills the worker
                                        # process on overrun and the master respawns it
-max_memory_mb = 256                    # Recycle a worker whose RSS exceeds this (omit = disabled)
+max_memory_mb = 256                    # Recycle a worker whose RSS exceeds this (example; disabled by default)
 boot_timeout = "30s"                   # Max time to wait for worker ready signal
 destroy_timeout = "10s"                # Grace after recycle SIGTERM before the master SIGKILLs
                                        # the worker's process group (wedged worker won't hang the pool)
@@ -48,7 +48,7 @@ liveness_timeout = "0s"                # Force-recycle a worker whose runtime he
 warmup = true                          # Compile Composer classmap into opcache before spawn
 
 # -----------------------------------------------------------------------------
-# Per-plugin worker pools (phase 85)
+# Per-plugin worker pools
 # -----------------------------------------------------------------------------
 # Scale subsystems independently by adding `workers = N` to a plugin's section
 # (`[http]`, `[jobs]`, `[grpc]`). That plugin gets its OWN dedicated pool of N
@@ -105,6 +105,7 @@ format = "text"                        # Output format: "text", "json", "pretty"
 listen = "0.0.0.0:8080"               # Listening address
 read_timeout = "10s"                   # Max time to read request body
 write_timeout = "30s"                  # Max time to write response (504 on timeout)
+shutdown_timeout = "30s"               # Grace period to drain in-flight connections on shutdown (distinct from [server] shutdown_timeout)
 max_request_size = "10mb"              # Max request body ("10mb", "512kb", or bytes). Not enforced when stream_request_body = true
 stream_request_body = false            # Stream body to PHP (Folk::read; multipart via Folk::nextPart) instead of buffering. See streaming.md
 stream_request_body_paths = []         # Restrict streaming to these paths ("*" suffix = prefix match). Empty = every path. Others stay buffered.
@@ -131,6 +132,8 @@ h2c = false                            # HTTP/2 cleartext (without TLS)
 # mode = "sync"                        # "sync" (critical path) | "async" (fire-and-forget)
 # timeout_ms = 5                       # Sync-only: abort hook after N ms (fail_open)
 # on_error = "fail_open"               # "fail_open" (skip+WARN) | "fail_closed" (→ 500)
+# required = false                     # true → a missing script or compile error ABORTS startup
+                                       # (instead of skipping the hook with a WARN)
 
 # =============================================================================
 # Jobs Plugin
@@ -268,8 +271,9 @@ h2c = false                            # HTTP/2 cleartext (without TLS)
 # name (no prefix) resolves directly when it is unique across all connections;
 # if the same bare name exists in more than one connection, it is ambiguous and
 # jobs.push returns an error asking for a prefix. The prefix is split on the
-# FIRST dot and is treated as a connection only when it matches a declared
-# connection — so avoid naming a queue with a leading "<driver>." segment.
+# FIRST dot and is treated as a connection only when it BOTH matches a declared
+# connection AND the remainder names an existing queue in it — so avoid naming a
+# queue with a leading "<driver>." segment.
 
 # =============================================================================
 # gRPC Plugin
@@ -296,17 +300,17 @@ compression = false                    # Enable gzip compression
 # cert = "/path/to/cert.pem"
 # key = "/path/to/key.pem"
 
-# --- gRPC clients: call upstream services from PHP (phase 88) -----------------
+# --- gRPC clients: call upstream services from PHP ---------------------------
 # Each [grpc.clients.<name>] is a named upstream. Its own `proto` builds its own
 # descriptor pool (isolated per upstream). PHP calls it via a generated
 # {Service}Client stub (folk:grpc:generate --client <name> / folk-grpc-gen
 # --client <name>) and Folk::grpcClient(Stub::class). No protoc, no ext-grpc.
 # A config with only [grpc.clients.*] and no [grpc] listen is a valid client-only
 # deployment.
-# STREAMING (phase 88b): a streaming RPC on the upstream reuses this SAME config —
-# no extra keys. The stub extends GrpcStreamClient; drain a server-stream with
-# foreach, feed a client-stream with an iterable, or do both for bidi. `deadline`
-# bounds the whole stream (→ DEADLINE_EXCEEDED). See plugins/grpc.md#streaming-32.
+# STREAMING: a streaming RPC on the upstream reuses this SAME config — no extra
+# keys. The stub extends GrpcStreamClient; drain a server-stream with foreach,
+# feed a client-stream with an iterable, or do both for bidi. `deadline` bounds
+# the whole stream (→ DEADLINE_EXCEEDED). See plugins/grpc.md#streaming.
 # [grpc.clients.catalog]
 # proto = ["proto/clients/catalog.proto"]   # This upstream's contract (files/dirs)
 # address = "catalog.svc:50051"             # host:port; or a list ["a:1","b:2"] → round-robin LB
@@ -367,9 +371,9 @@ max_series = 10000                     # Cap on distinct series in the shared-me
 # [[process.processes]]
 # name = "scheduler"
 # command = "php artisan schedule:work"
-# restart = "always"                   # "always", "on_failure", "never"
-# max_restarts = 5                     # Max restart attempts
-# restart_delay = "2s"                 # Delay between restarts
+# restart = "always"                   # REQUIRED: "always", "on_failure", "never"
+# max_restarts = 5                     # REQUIRED: max restart attempts
+# restart_delay = "2s"                 # REQUIRED: delay between restarts
 # directory = "/app"                   # Working directory (default: server CWD)
 # stop_timeout = "5s"                  # Graceful shutdown timeout
 # stop_signal = "TERM"                 # Stop signal: TERM, INT, QUIT

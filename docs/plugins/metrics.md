@@ -23,10 +23,11 @@ prefix = "folk"                 # Namespace prefix for custom metrics (folk_*)
 metrics_path = "/metrics"       # Prometheus scrape endpoint path
 health_path = "/health"         # Liveness probe path
 ready_path = "/ready"           # Readiness probe path
+max_series = 10000              # Cap on distinct series; new series past it bump folk_metrics_series_dropped
 
 # Per-plugin metric filtering (omit section = all enabled)
 # [metrics.plugins]
-# core = true       # folk_workers_*, folk_request_*, folk_boot_*
+# core = true       # folk_workers_*, folk_worker_*, folk_request_*, folk_boot_*
 # http = true        # folk_http_*
 # jobs = true        # folk_jobs_*
 # grpc = false       # folk_grpc_* — disabled
@@ -146,10 +147,11 @@ Each plugin registers its own metrics. Available metrics depend on which plugins
 
 | Plugin | Metrics |
 |--------|---------|
+| **http** | `folk_http_requests_total` |
 | **grpc** | `folk_grpc_requests_total`, `folk_grpc_request_duration_seconds`, `folk_grpc_message_sent_bytes`, `folk_grpc_message_received_bytes`, `folk_grpc_active_streams`, `folk_grpc_errors_total` |
 | **jobs** | `folk_jobs_pushed_total`, `folk_jobs_processed_total`, `folk_jobs_processing_duration_seconds`, `folk_jobs_retries_total`, `folk_jobs_dead_letter_total`, `folk_jobs_active` |
-| **core** | `folk_workers_total`, `folk_request_dispatch_total`, `folk_request_dispatch_duration_seconds`, `folk_worker_restarts_total`, `folk_request_queue_size` (planned) |
-| **core (per-worker, fork model)** | `folk_worker_heartbeat_millis`, `folk_worker_inflight_seconds`, `folk_worker_requests_total` — each labelled by `worker_id` |
+| **process** | `folk_process_up`, `folk_process_restarts_total`, `folk_process_uptime_seconds`, `folk_process_exit_code`, `folk_process_status` |
+| **core (per-worker)** | `folk_worker_heartbeat_millis`, `folk_worker_inflight_seconds`, `folk_worker_requests_total` — each labelled by `worker_id` |
 
 ### Per-worker liveness (fork model)
 
@@ -160,5 +162,3 @@ Under the fork-after-warm model each worker process reports its own liveness onc
 - **`folk_worker_requests_total{worker_id}`** — requests handled per worker slot (cumulative across respawns).
 
 Setting `[workers] liveness_timeout` makes the master act on the heartbeat automatically (force-recycle); leaving it off keeps these metrics as a pure observability signal.
-| **http** | `folk_http_requests_total`, `folk_http_request_duration_seconds`, `folk_http_active_connections`, `folk_http_errors_total` (planned) |
-| **process** | `folk_process_up`, `folk_process_restarts_total`, `folk_process_uptime_seconds` (planned) |

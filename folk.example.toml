@@ -219,7 +219,7 @@ proto = []
 # Example with proto files:
 # proto = ["proto/greeter.proto", "proto/orders.proto"]
 
-# gRPC clients — call upstream services from PHP (phase 88). Each named upstream
+# gRPC clients — call upstream services from PHP. Each named upstream
 # has its own proto contract; PHP calls it via a generated {Service}Client stub
 # and Folk::grpcClient(). Omit [grpc] listen above for a client-only deployment.
 # [grpc.clients.catalog]
