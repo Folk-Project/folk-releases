@@ -16,16 +16,23 @@
 # RELEASE_NOTES.md and folk-spec (phases table) / git log.
 
 [release]
-version = "0.2.11"
+version = "0.2.12"
 
 [builder]
-version = "0.2.19"
+version = "0.2.20"
 
 [plugins]
 folk-plugin-http = "0.5.*"
-folk-plugin-grpc = "0.7.*"
 folk-plugin-metrics = "0.3.*"
 folk-plugin-process = "0.3.*"
+
+# gRPC exposes the PHP host function `folk_grpc_descriptors` behind its `php-ext`
+# feature — declare it so the builder wires it in (folk-releases#91; the builder no
+# longer special-cases gRPC by name). Without this feature the prebuilt .so would
+# lack `folk_grpc_descriptors` / `artisan folk:grpc:generate`.
+[plugins.folk-plugin-grpc]
+version = "0.7.*"
+features = ["php-ext"]
 
 [plugins.folk-plugin-jobs]
 version = "0.7.*"

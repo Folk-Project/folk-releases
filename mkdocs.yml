@@ -49,6 +49,7 @@ nav:
       - Process: plugins/process.md
   - PHP API: php-api.md
   - Streaming: streaming.md
+  - Plugin Development: plugin-development.md
   - Benchmarks: benchmarks.md
   - Contributing: contributing.md
 

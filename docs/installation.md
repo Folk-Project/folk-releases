@@ -84,20 +84,49 @@ cargo install folk-builder
 
 ### 4. Create `folk.build.toml`
 
+`folk.build.toml` lists which plugins are compiled into your `.so`. One
+`[[plugin]]` block per plugin:
+
 ```toml
 [build]
-output = "folk"
+output = "folk"                     # produces folk.so
 
 [[plugin]]
-crate_name = "folk-plugin-http"
-version = "0.2"
-config_key = "http"
+crate_name = "folk-plugin-http"     # crates.io crate name
+version = "0.5"                     # semver req (Cargo syntax, e.g. "0.5", "0.5.*")
+config_key = "http"                 # the folk.toml section that configures it ([http])
 
 [[plugin]]
 crate_name = "folk-plugin-jobs"
-version = "0.2"
+version = "0.7"
 config_key = "jobs"
+features = ["redis", "embedded"]    # optional: Cargo features on the plugin
+
+[[plugin]]
+crate_name = "folk-plugin-grpc"
+version = "0.7"
+config_key = "grpc"
+features = ["php-ext"]              # REQUIRED for gRPC — see note below
 ```
+
+Per-plugin fields:
+
+| Field | Meaning |
+|-------|---------|
+| `crate_name` | The plugin crate (from crates.io). |
+| `version` | Cargo version requirement. Omit if using `path`/`git`. |
+| `path` / `git` | Build from a local path or git repo instead of crates.io (for development). |
+| `config_key` | The `folk.toml` section name that enables/configures the plugin. |
+| `features` | Cargo features to enable on the plugin crate. |
+
+!!! important "gRPC needs the `php-ext` feature"
+    The gRPC plugin exposes the PHP host function `folk_grpc_descriptors` (used by
+    proto → DTO code generation, e.g. `php artisan folk:grpc:generate`) behind its
+    **`php-ext`** Cargo feature. If you include `folk-plugin-grpc`, add
+    `features = ["php-ext"]` — otherwise that function is left out of the `.so` and
+    generation fails. This is the general convention: a plugin that adds its own PHP
+    functions declares `features = ["php-ext"]`, and the builder wires it in
+    automatically (see [Plugin Development](plugin-development.md)).
 
 ### 5. Build
 
