@@ -1,36 +1,66 @@
 # Release Notes
 
-### Plugins own their PHP host-function surface by convention ([#91](https://github.com/Folk-Project/folk-releases/issues/91))
+### gRPC client-streaming & bidi on the server ([#92](https://github.com/Folk-Project/folk-releases/issues/92))
 
-**A maintenance/architecture release — no change to the PHP API or behaviour.** The
-extension exposes the same `folk_*` functions as before.
+Folk gRPC now supports **all four call modes on both sides**. This release adds the
+last missing quadrant: a Folk handler that **receives a stream of request messages**
+— client-streaming (N→1) and bidirectional (N↔N). Server-streaming server and all
+three streaming clients already shipped in the streaming release ([#32](https://github.com/Folk-Project/folk-releases/issues/32)).
 
-Follow-up to [#89](https://github.com/Folk-Project/folk-releases/issues/89): that
-release moved gRPC's `folk_grpc_descriptors` body into the plugin, but folk-builder
-still referenced the gRPC plugin **by name** to wire it in. Now the builder is fully
-**name-agnostic**:
+**PHP handlers just `foreach`.** The generated interface types the request side as
+`iterable $requests`; you iterate hydrated request DTOs and either return one
+response (client-streaming) or `yield` a stream (bidi):
 
-- **folk-builder 0.2.20** — the generated extension calls
-  `<plugin>::register_php_functions(module)` for **every** plugin whose build enables
-  the `php-ext` feature, in config order. No plugin is special-cased by name; the
-  `folk_plugin_grpc` string is gone from the codegen.
+```php
+class UploaderService implements UploaderInterface
+{
+    /** @param iterable<UploadChunk> $requests */
+    public function Upload(iterable $requests, Context $context): ?UploadResult
+    {
+        $bytes = 0;
+        foreach ($requests as $chunk) {          // hydrated request DTOs
+            $bytes += strlen($chunk->data);
+        }
+        return new UploadResult(bytes: $bytes);
+    }
 
-**Convention for plugin authors** (new [Plugin Development](https://folk-project.github.io/folk-releases/plugin-development/)
-doc): a plugin that needs its own PHP function exposes an optional `php-ext` Cargo
-feature and a `pub fn register_php_functions(ModuleBuilder) -> ModuleBuilder`, then
-is declared with `features = ["php-ext"]`. Adding a PHP host function to a new plugin
-no longer requires touching folk-builder.
+    /**
+     * @param  iterable<ChatMsg> $requests
+     * @return iterable<ChatMsg>
+     */
+    public function Chat(iterable $requests, Context $context): iterable
+    {
+        foreach ($requests as $msg) {
+            yield new ChatMsg(text: "echo: {$msg->text}");
+        }
+    }
+}
+```
 
-!!! note "Building your own `.so` with gRPC"
-    Because the builder no longer auto-injects the feature, a `folk.build.toml` (or
-    the release `build-manifest.toml`) that includes `folk-plugin-grpc` must now
-    declare `features = ["php-ext"]` to keep `folk_grpc_descriptors` /
-    `php artisan folk:grpc:generate`. See
-    [Installation → Build from Source](https://folk-project.github.io/folk-releases/installation/#build-from-source).
+Registration is identical to any other handler (`folk.grpc.services`). The inbound
+element type is carried by the generated interface's `@param iterable<Dto>` docblock
+(IDE + phpstan) and an `INPUT_STREAMS` map (the router hydrates each message) — you
+never touch a low-level pull primitive.
 
-The [Installation](https://folk-project.github.io/folk-releases/installation/#build-from-source)
-guide now documents the full `folk.build.toml` schema (all `[[plugin]]` fields) so a
-custom build is self-service.
+**Under the hood:** the transport reads the incoming HTTP/2 body one gRPC frame at a
+time (never buffering the whole stream), transcodes each to a message, and feeds the
+worker through the request-body streaming channel introduced for HTTP — so a PHP
+`foreach` pulls one inbound message at a time. Reuses the existing streaming machinery;
+**folk-api and folk-builder are unchanged.**
 
-Prebuilt extension release `0.2.12` (folk-builder 0.2.20; gRPC declared with
-`features = ["php-ext"]`). No plugin crate versions changed.
+!!! note "v1 bidi is lockstep"
+    On a single worker, bidi is **serialized** (the client sends all requests, then
+    the responses drain). Fine for request/response echo patterns; truly concurrent
+    bidi is a later increment. Client-streaming/bidi are **transcode-mode only** (the
+    server needs the descriptor to detect the call kind). See
+    [gRPC → Streaming](https://folk-project.github.io/folk-releases/plugins/grpc/#streaming).
+
+Verified end-to-end with real Folk on both ends across **all four framework stands**
+(Laravel, Symfony, Spiral, Yii): client-streaming aggregation, bidi echo, empty
+streams, plus server-streaming + unary negative controls.
+
+**Versions:** folk-core/folk-ext **0.6.3** (`folk_grpc_recv` inbound host fn),
+folk-plugin-grpc **0.7.1** (client-streaming/bidi server dispatch), folk/sdk **0.4.7**
+(inbound router path, generated `iterable`-request interfaces). folk-api (0.3.3),
+folk-builder (0.2.20), and the framework adapters are unchanged (they resolve
+folk/sdk `^0.4`). Prebuilt extension release `0.2.13`.

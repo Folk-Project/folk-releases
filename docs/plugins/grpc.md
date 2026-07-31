@@ -7,7 +7,7 @@ Native gRPC server with reflection and health checking. Built on [tonic](https:/
 - Unary gRPC calls with dispatch to PHP workers
 - **Typed proto DX**: proto↔native transcoding + DTO/interface generation, no protoc ([see below](#typed-proto-dx-no-protoc))
 - **gRPC client**: call upstream services from PHP with typed DTOs, no protoc — deadlines, retries, load balancing, TLS/mTLS ([see below](#grpc-client--call-upstream-services-no-protoc))
-- **Streaming**: server-streaming handler (`yield`); server/client/bidi streaming client (`foreach`/iterable) with typed DTOs, deadlines, cancellation ([see below](#streaming))
+- **Streaming**: all four modes on both sides — server/client/bidi handlers (`yield` / `iterable $requests`) and server/client/bidi clients (`foreach`/iterable), typed DTOs, deadlines, cancellation ([see below](#streaming))
 - Server reflection via proto files (grpcurl, Postman auto-discovery)
 - Automatic proto import resolution
 - gRPC Health Checking Protocol (grpc.health.v1)
@@ -22,7 +22,7 @@ Native gRPC server with reflection and health checking. Built on [tonic](https:/
 
 ## Planned
 
-- Client-streaming / bidi on the **server** side (a handler receiving a request stream). Server-streaming on the server, and all three streaming modes on the client, already ship.
+- Truly concurrent bidi on a single worker (v1 bidi is lockstep — all requests sent, then responses drained; [see below](#worker-blocking-model-important)).
 
 ## Configuration
 
@@ -421,14 +421,13 @@ Folk streams gRPC with the same no-`protoc` typed-DTO model, over a dedicated
 async bridge (the unary path is strictly one-in-one-out). A streaming RPC is
 declared in `.proto` the usual way; the generator emits the streaming shapes.
 
-**This release ships:**
+**All four gRPC modes work on both sides:**
 
 - **server-streaming server** — a Folk handler *yields* a stream of responses;
+- **client-streaming / bidi server** — a Folk handler *receives* a request stream
+  via `iterable $requests` (a plain `foreach`);
 - **server / client / bidirectional streaming client** — PHP drains or feeds a
   stream over a `foreach` / iterable.
-
-Client-streaming and bidi on the **server** side (a Folk handler *receiving* a
-request stream) are not in this release — the client already does all three.
 
 ### Server-streaming handler (server)
 
@@ -454,6 +453,49 @@ class PricesService implements PricesInterface
 
 Registration is identical to a unary handler (`folk.grpc.services`). A `return`
 (no `yield`) is a valid empty stream.
+
+### Client-streaming / bidi handler (server)
+
+When the request side is a stream, the generated interface types the method's
+first parameter as `iterable $requests` — the handler `foreach`es the inbound
+request DTOs. **Client-streaming** returns one response DTO; **bidi** `yield`s a
+stream of responses while consuming the requests:
+
+```php
+use Folk\Sdk\Grpc\Context;
+
+class UploaderService implements UploaderInterface
+{
+    // client-streaming: a stream of requests → one response
+    /** @param iterable<UploadChunk> $requests */
+    public function Upload(iterable $requests, Context $context): ?UploadResult
+    {
+        $bytes = 0;
+        foreach ($requests as $chunk) {          // each is a hydrated request DTO
+            $bytes += strlen($chunk->data);
+        }
+        return new UploadResult(bytes: $bytes);
+    }
+
+    // bidi: a stream of requests ↔ a stream of responses (v1 lockstep — see below)
+    /**
+     * @param  iterable<ChatMsg> $requests
+     * @return iterable<ChatMsg>
+     */
+    public function Chat(iterable $requests, Context $context): iterable
+    {
+        foreach ($requests as $msg) {
+            yield new ChatMsg(text: "echo: {$msg->text}");
+        }
+    }
+}
+```
+
+The element type of `iterable $requests` lives in the generated interface's
+`@param iterable<Dto>` docblock (so IDEs and phpstan see it) and its
+`INPUT_STREAMS` map (so the router hydrates each message) — you never touch the
+low-level pull primitive. As with unary, `$context->setStatus()` reports a
+business status; for client-streaming, return `null` alongside it.
 
 ### Streaming client
 
