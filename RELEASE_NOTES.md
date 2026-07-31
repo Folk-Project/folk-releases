@@ -1,66 +1,33 @@
 # Release Notes
 
-### gRPC client-streaming & bidi on the server ([#92](https://github.com/Folk-Project/folk-releases/issues/92))
+### Jobs plugin: driver registry cleanup ([#77](https://github.com/Folk-Project/folk-releases/issues/77))
 
-Folk gRPC now supports **all four call modes on both sides**. This release adds the
-last missing quadrant: a Folk handler that **receives a stream of request messages**
-— client-streaming (N→1) and bidirectional (N↔N). Server-streaming server and all
-three streaming clients already shipped in the streaming release ([#32](https://github.com/Folk-Project/folk-releases/issues/32)).
+Internal maintainability release for `folk-plugin-jobs` — **no behavior, config, or
+API change**. The prebuilt extension is rebuilt against the refactored crate; if you use
+Folk through the published `.so` or via crates.io, nothing about your `folk.toml`,
+queues, drivers, or dispatch changes.
 
-**PHP handlers just `foreach`.** The generated interface types the request side as
-`iterable $requests`; you iterate hydrated request DTOs and either return one
-response (client-streaming) or `yield` a stream (bidi):
+**What changed under the hood.** Adding or maintaining a queue backend used to touch
+five scattered places, most of it near-duplicated `#[cfg(feature = …)]` boilerplate
+(a `compiled_drivers()` list, a `build_<driver>()` function per backend, an
+`unavailable()` helper, and a routing arm each). All of that is now generated from a
+single declarative driver table (`drivers!` in `src/registry.rs`). Adding a backend is
+now: a driver module, one config field, and **one table row** — ~120 lines of `cfg`
+duplication removed.
 
-```php
-class UploaderService implements UploaderInterface
-{
-    /** @param iterable<UploadChunk> $requests */
-    public function Upload(iterable $requests, Context $context): ?UploadResult
-    {
-        $bytes = 0;
-        foreach ($requests as $chunk) {          // hydrated request DTOs
-            $bytes += strlen($chunk->data);
-        }
-        return new UploadResult(bytes: $bytes);
-    }
+**Why not split into per-driver crates** (the original #77 proposal). Lean builds are
+already delivered by Cargo features (`features = ["redis"]` never compiles the
+Kafka/AWS/GCP SDKs), and the prebuilt `.so` ships every driver regardless. A crate split
+would only buy independent crates.io versioning at the cost of 8× publish surface — not
+worth it for the one real pain point, which is fixed in place here.
 
-    /**
-     * @param  iterable<ChatMsg> $requests
-     * @return iterable<ChatMsg>
-     */
-    public function Chat(iterable $requests, Context $context): iterable
-    {
-        foreach ($requests as $msg) {
-            yield new ChatMsg(text: "echo: {$msg->text}");
-        }
-    }
-}
-```
+**Protected behavior — unchanged and verified:** the `[jobs.connections.<driver>]` TOML
+layout, secret redaction in logs, queue routing (`[<connection>.]<queue>`), the
+feature-missing fail-fast error, the `jobs.push` / `jobs.stats` RPC, metric names, and
+the consume / retry / dead-letter loop. The full unit + integration suite passes without
+test changes; end-to-end job push→redis→consume was smoke-tested on Laravel (NTS fork
+model).
 
-Registration is identical to any other handler (`folk.grpc.services`). The inbound
-element type is carried by the generated interface's `@param iterable<Dto>` docblock
-(IDE + phpstan) and an `INPUT_STREAMS` map (the router hydrates each message) — you
-never touch a low-level pull primitive.
-
-**Under the hood:** the transport reads the incoming HTTP/2 body one gRPC frame at a
-time (never buffering the whole stream), transcodes each to a message, and feeds the
-worker through the request-body streaming channel introduced for HTTP — so a PHP
-`foreach` pulls one inbound message at a time. Reuses the existing streaming machinery;
-**folk-api and folk-builder are unchanged.**
-
-!!! note "v1 bidi is lockstep"
-    On a single worker, bidi is **serialized** (the client sends all requests, then
-    the responses drain). Fine for request/response echo patterns; truly concurrent
-    bidi is a later increment. Client-streaming/bidi are **transcode-mode only** (the
-    server needs the descriptor to detect the call kind). See
-    [gRPC → Streaming](https://folk-project.github.io/folk-releases/plugins/grpc/#streaming).
-
-Verified end-to-end with real Folk on both ends across **all four framework stands**
-(Laravel, Symfony, Spiral, Yii): client-streaming aggregation, bidi echo, empty
-streams, plus server-streaming + unary negative controls.
-
-**Versions:** folk-core/folk-ext **0.6.3** (`folk_grpc_recv` inbound host fn),
-folk-plugin-grpc **0.7.1** (client-streaming/bidi server dispatch), folk/sdk **0.4.7**
-(inbound router path, generated `iterable`-request interfaces). folk-api (0.3.3),
-folk-builder (0.2.20), and the framework adapters are unchanged (they resolve
-folk/sdk `^0.4`). Prebuilt extension release `0.2.13`.
+**Versions:** folk-plugin-jobs **0.7.1** (crates.io). No other crate changed — folk-api
+(0.3.3), folk-core/folk-ext (0.6.3), folk-plugin-grpc (0.7.1), folk-builder (0.2.20), and
+all PHP adapters are untouched. Prebuilt extension release `0.2.14`.

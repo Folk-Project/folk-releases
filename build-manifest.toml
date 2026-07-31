@@ -16,7 +16,7 @@
 # RELEASE_NOTES.md and folk-spec (phases table) / git log.
 
 [release]
-version = "0.2.13"
+version = "0.2.14"
 
 [builder]
 version = "0.2.20"
