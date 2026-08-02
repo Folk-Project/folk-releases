@@ -28,6 +28,24 @@ Complete `folk.toml` with all available options and their defaults.
 shutdown_timeout = "30s"               # Max time for graceful shutdown after SIGTERM
 
 # =============================================================================
+# on_init — pre-start lifecycle hooks
+# =============================================================================
+# Commands Folk runs itself BEFORE the framework boots and any listener binds,
+# so "everything in one container" needs no separate entrypoint.sh. Runs at the
+# top of the entry script, before vendor/autoload.php is required. Absent section
+# or empty `commands` = no-op (startup unchanged). Needs a shell (sh -c); cannot
+# bootstrap a completely empty vendor/ (the launcher lives in vendor/bin).
+[on_init]
+exec_timeout = "60s"                   # Default per-step timeout
+exit_on_error = true                   # Default: non-zero exit / timeout ABORTS startup (fail-fast;
+                                       # differs from RoadRunner's log-and-continue). Opt out per step.
+commands = [                           # Run sequentially, in order, cwd = project root, via `sh -c`
+  "cp -n .env.example .env",           #   bare string uses the section defaults
+  { run = "php artisan migrate --force", exec_timeout = "300s" },  # inline table overrides fields:
+                                       #   run / exec_timeout / env / user / exit_on_error
+]
+
+# =============================================================================
 # Workers
 # =============================================================================
 [workers]

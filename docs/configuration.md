@@ -21,6 +21,63 @@ The pattern is `FOLK_{SECTION}__{FIELD}` — single underscore after `FOLK`, dou
 shutdown_timeout = "30s"          # Graceful shutdown timeout
 ```
 
+## on_init — pre-start lifecycle hooks
+
+Commands Folk runs **itself** before the framework boots and any listener binds —
+so an "everything in one container" deployment needs no separate `entrypoint.sh`.
+Typical uses: seed a `.env`, refresh dependencies, run migrations, warm caches.
+
+```toml
+[on_init]
+exec_timeout = "60s"       # default per-step timeout
+exit_on_error = true       # default: a non-zero exit aborts startup (see below)
+commands = [
+  "cp -n .env.example .env",
+  "composer install --no-dev --optimize-autoloader",
+  { run = "php artisan migrate --force", exec_timeout = "300s" },
+]
+```
+
+Each `commands` entry is either a **bare string** (uses the section defaults) or an
+**inline table** that overrides individual settings:
+
+| Step field | Meaning |
+|------------|---------|
+| `run` | the shell command line (run via `sh -c`) |
+| `exec_timeout` | per-step timeout override (else the section default) |
+| `env` | extra environment variables, merged over the inherited environment |
+| `user` | run the step as this OS user (requires the master to run as root) |
+| `exit_on_error` | per-step override of the section default |
+
+**Semantics**
+
+- Steps run **sequentially**, in declaration order, with the project root as the
+  working directory; commands go through `sh -c` (pipes, `&&`, substitutions work).
+- **Fail-fast by default** (`exit_on_error = true`) — a non-zero exit or a timeout
+  aborts startup so a broken environment never receives traffic. This differs from
+  RoadRunner's `on_init` (which defaults to log-and-continue); opt out globally or
+  per step with `exit_on_error = false`.
+- A step that exceeds its `exec_timeout` is killed (`SIGTERM` → grace → `SIGKILL`
+  of the whole process group) and treated as a failure.
+- Command output is streamed into the Folk log.
+- **Readiness gate:** while `on_init` runs no listener is bound, so an
+  orchestrator's readiness probe gets connection-refused (= not ready). A fail-fast
+  abort exits non-zero, so the container is restarted rather than serving traffic.
+
+**When it runs.** `on_init` executes at the very top of the entry script, *before*
+`vendor/autoload.php` is required — so even pre-bootstrap commands (a fresh `.env`,
+a dependency refresh) take effect. It is skipped for the `grpc:descriptors` codegen
+submode. Two caveats:
+
+- **Needs a shell.** Steps run through `sh -c`; a distroless image without a shell
+  cannot use string commands.
+- **Not a from-scratch installer.** The launcher itself lives in `vendor/bin`, so a
+  `composer install` here refreshes an *existing* `vendor/`; it cannot bootstrap a
+  completely empty one.
+
+An absent `[on_init]` section (or an empty `commands`) is a no-op — startup is
+unchanged.
+
 ## Workers
 
 ```toml

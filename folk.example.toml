@@ -17,6 +17,24 @@
 shutdown_timeout = "30s"
 
 # -----------------------------------------------------------------------------
+# on_init — pre-start lifecycle hooks (optional)
+# -----------------------------------------------------------------------------
+# Commands Folk runs itself before the framework boots and any listener binds —
+# an "everything in one container" deployment needs no separate entrypoint.sh.
+# Runs before vendor/autoload.php is required, so a fresh .env / dependency
+# refresh take effect. Fail-fast by default: a non-zero exit aborts startup.
+# Omit this section to disable it (startup unchanged).
+#
+# [on_init]
+# exec_timeout = "60s"       # default per-step timeout
+# exit_on_error = true       # non-zero exit / timeout aborts startup (opt out per step)
+# commands = [
+#   "cp -n .env.example .env",
+#   "composer install --no-dev --optimize-autoloader",
+#   { run = "php artisan migrate --force", exec_timeout = "300s" },
+# ]
+
+# -----------------------------------------------------------------------------
 # Workers
 # -----------------------------------------------------------------------------
 [workers]

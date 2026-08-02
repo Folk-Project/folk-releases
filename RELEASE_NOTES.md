@@ -1,45 +1,50 @@
 # Release Notes
 
-### gRPC DTOs: get/set accessors
+### `on_init` — pre-start lifecycle hooks
 
-The generated gRPC message DTOs now use a familiar **get/set** shape instead of
-public readonly properties. This is a **PHP-only** change in `folk/sdk` — no Rust,
-no `.so` rebuild, no config change.
+Folk can now run setup commands **itself** before the framework boots and any
+listener binds — so an "everything in one container" deployment no longer needs a
+separate `entrypoint.sh`. Configure them in `folk.toml`:
 
-**What changed.** A generated message used to be a `final readonly class` with public
-promoted constructor properties — you could only build it through the constructor and
-read fields directly (`$dto->name`). Now each message is a `final class` with `private`
-fields plus fluent accessors:
-
-```php
-// build — both work, and are equivalent on the wire
-$reply = (new HelloReply())->setMessage("Hi");   // fluent, chainable
-$reply = new HelloReply(message: "Hi");          // named args — constructor kept
-
-// read
-echo $reply->getMessage();
+```toml
+[on_init]
+exec_timeout = "60s"       # default per-step timeout
+exit_on_error = true       # non-zero exit / timeout aborts startup (fail-fast)
+commands = [
+  "cp -n .env.example .env",
+  "composer install --no-dev --optimize-autoloader",
+  { run = "php artisan migrate --force", exec_timeout = "300s" },
+]
 ```
 
-Every field gets `getX(): T` and `setX(T $value): self`. The all-optional constructor
-is preserved, so existing `new Foo(field: ...)` construction keeps working unchanged.
+**What it does.** Each `commands` entry is either a bare shell string (uses the
+section defaults) or an inline table overriding `run` / `exec_timeout` / `env` /
+`user` / `exit_on_error`. Steps run **sequentially**, in order, from the project
+root, via `sh -c` (pipes and `&&` work). Command output is streamed into the Folk
+log.
 
-**Protected behavior — unchanged and verified.** The wire contract (canonical JSON:
-snake_case fields, enums as ints, bytes base64) is byte-identical; `FOLK_FIELDS`, the
-`Hydrator::hydrate()` build path, service `*Interface` and `*Client` stub signatures,
-`INPUT_STREAMS`, the `{package}` layout, and int-backed enums are all untouched.
-Internally `Hydrator::dehydrate()` now reads the private fields by reflection on the
-field name (decoupled from accessor naming). The full folk/sdk suite (110 tests,
-phpstan level 8) is green, and end-to-end gRPC — unary, server-streaming,
-client-streaming, and bidi, plus the full type-map `Echo` — was smoke-tested across
-Laravel, Symfony, Spiral, and Yii 3.
+**Fail-fast by default.** Unlike RoadRunner's `on_init` (log-and-continue), Folk
+defaults `exit_on_error = true`: a non-zero exit or a per-step timeout aborts
+startup, so a broken environment (a failed migration, a missing dependency) never
+receives traffic. Opt out globally or per step. A step that overruns its
+`exec_timeout` is killed (`SIGTERM` → grace → `SIGKILL` of its process group).
 
-**Upgrading (breaking for regenerated code).** After upgrading, **re-run codegen**
-(`php artisan folk:grpc:generate`, or `vendor/bin/folk-grpc-gen`) and switch field
-**reads** from `$dto->field` to `$dto->getField()`. Construction via
-`new Foo(field: ...)` needs no change. Because the fields are now private,
-`json_encode($dto)` no longer emits them — go through the SDK path (the router and
-client already do) or build the array from the getters.
+**Readiness.** While `on_init` runs, no listener is bound — an orchestrator's
+readiness probe sees connection-refused (= not ready), and a fail-fast abort exits
+non-zero so the container restarts instead of serving a half-set-up app.
 
-**Versions:** folk/sdk **0.4.8** (Packagist). No other package changed — the framework
-adapters resolve `folk/sdk` on `^0.4` and need no update; folk-api, folk-core/folk-ext,
-the plugins, folk-builder, and the prebuilt extension are all untouched.
+**When it runs.** At the very top of the entry script, *before*
+`vendor/autoload.php` is required, so even pre-bootstrap commands (a fresh `.env`,
+a dependency refresh) take effect. Two caveats: it needs a shell (`sh -c`) — a
+distroless image without one can't use string commands — and it is not a
+from-scratch installer (the launcher lives in `vendor/bin`, so `composer install`
+here refreshes an existing `vendor/`, it can't create an empty one). Absent
+`[on_init]` (or empty `commands`) is a no-op: startup is unchanged.
+
+**Availability.** Works across all four framework adapters (Laravel, Symfony,
+Spiral, Yii 3). Requires the rebuilt extension.
+
+**Versions:** folk-core / folk-ext **0.6.4** (config section + `on_init` engine +
+native `folk_on_init()`), prebuilt extension rebuilt. The framework adapters ship a
+one-line entry-script change (`bin/folk-server`) and a stub update. folk-api, the
+plugins, and folk-builder are untouched.
