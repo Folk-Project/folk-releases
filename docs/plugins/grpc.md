@@ -126,8 +126,8 @@ behaviour unchanged.
 
 The generator compiles your `.proto` with the gRPC plugin (in-process when the
 `folk` extension is loaded, otherwise via a short-lived `folk-server
-grpc:descriptors` subprocess) and writes readonly DTOs, int-backed enums, and a
-`*Interface` service contract.
+grpc:descriptors` subprocess) and writes DTOs (private fields with `get*`/`set*`
+accessors), int-backed enums, and a `*Interface` service contract.
 
 - **Laravel:**
 
@@ -220,10 +220,24 @@ final class GreeterService implements GreeterInterface
 {
     public function SayHello(HelloRequest $request, Context $context): HelloReply
     {
-        return new HelloReply(message: "Hello, {$request->name}!");
+        return new HelloReply(message: "Hello, {$request->getName()}!");
     }
 }
 ```
+
+Each message DTO has `private` fields, a `get*()` per field, and a fluent
+`set*($value): self`. Build them either through the all-optional constructor
+(named arguments) or by chaining setters — both are equivalent on the wire:
+
+```php
+$reply = (new HelloReply())->setMessage("Hi");     // fluent
+$reply = new HelloReply(message: "Hi");            // named args — same result
+```
+
+> DTOs are **mutable** (not `readonly`). Read fields with the getters, not direct
+> property access. Because the fields are private, `json_encode($dto)` will not
+> emit them — go through the SDK path (the router/client already do) or build the
+> array yourself from the getters.
 
 Register it (service name comes from the interface's `NAME` constant):
 
@@ -306,7 +320,7 @@ use Folk\Sdk\Grpc\Context;
 
 public function GetUser(GetUserRequest $request, Context $context): ?UserReply
 {
-    $user = $this->repo->find($request->id);
+    $user = $this->repo->find($request->getId());
     if ($user === null) {
         $context->setStatus(5, 'user not found');   // NOT_FOUND
         return null;
@@ -390,8 +404,8 @@ $catalog = Folk::grpcClient(CatalogClient::class);            // resolves [grpc.
 // or Folk::grpcClient(CatalogClient::class, 'other:50051');  // endpoint override
 
 $resp = $catalog->Search(new SearchRequest(query: 'phone', page: 1));  // DTO in → DTO out
-foreach ($resp->products as $p) {
-    echo $p->title;
+foreach ($resp->getProducts() as $p) {
+    echo $p->getTitle();
 }
 ```
 
@@ -442,7 +456,7 @@ class PricesService implements PricesInterface
     /** @return iterable<PriceUpdate> */
     public function Watch(WatchRequest $request, Context $context): iterable
     {
-        foreach ($this->feed($request->topic) as $tick) {
+        foreach ($this->feed($request->getTopic()) as $tick) {
             yield new PriceUpdate(symbol: $tick->symbol, price: $tick->price);
         }
         // A business status set here (or mid-stream) ends the stream with that code:
@@ -472,7 +486,7 @@ class UploaderService implements UploaderInterface
     {
         $bytes = 0;
         foreach ($requests as $chunk) {          // each is a hydrated request DTO
-            $bytes += strlen($chunk->data);
+            $bytes += strlen($chunk->getData());
         }
         return new UploadResult(bytes: $bytes);
     }
@@ -485,7 +499,7 @@ class UploaderService implements UploaderInterface
     public function Chat(iterable $requests, Context $context): iterable
     {
         foreach ($requests as $msg) {
-            yield new ChatMsg(text: "echo: {$msg->text}");
+            yield new ChatMsg(text: "echo: {$msg->getText()}");
         }
     }
 }
@@ -508,7 +522,7 @@ $prices = Folk::grpcClient(PricesClient::class);
 
 // server-streaming: one request → a lazy stream of responses
 foreach ($prices->Watch(new WatchRequest(topic: 'FScoin')) as $update) {
-    echo "{$update->symbol} {$update->price}\n";   // arrives one message at a time
+    echo "{$update->getSymbol()} {$update->getPrice()}\n";   // arrives one message at a time
 }
 
 // client-streaming: a stream of requests → one response
@@ -520,7 +534,7 @@ $summary = $uploader->Upload((function () {
 
 // bidirectional: a stream of requests ↔ a stream of responses
 foreach ($chat->Converse($outgoing) as $incoming) {
-    echo $incoming->text;
+    echo $incoming->getText();
 }
 ```
 

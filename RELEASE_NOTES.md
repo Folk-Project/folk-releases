@@ -1,33 +1,45 @@
 # Release Notes
 
-### Jobs plugin: driver registry cleanup ([#77](https://github.com/Folk-Project/folk-releases/issues/77))
+### gRPC DTOs: get/set accessors
 
-Internal maintainability release for `folk-plugin-jobs` — **no behavior, config, or
-API change**. The prebuilt extension is rebuilt against the refactored crate; if you use
-Folk through the published `.so` or via crates.io, nothing about your `folk.toml`,
-queues, drivers, or dispatch changes.
+The generated gRPC message DTOs now use a familiar **get/set** shape instead of
+public readonly properties. This is a **PHP-only** change in `folk/sdk` — no Rust,
+no `.so` rebuild, no config change.
 
-**What changed under the hood.** Adding or maintaining a queue backend used to touch
-five scattered places, most of it near-duplicated `#[cfg(feature = …)]` boilerplate
-(a `compiled_drivers()` list, a `build_<driver>()` function per backend, an
-`unavailable()` helper, and a routing arm each). All of that is now generated from a
-single declarative driver table (`drivers!` in `src/registry.rs`). Adding a backend is
-now: a driver module, one config field, and **one table row** — ~120 lines of `cfg`
-duplication removed.
+**What changed.** A generated message used to be a `final readonly class` with public
+promoted constructor properties — you could only build it through the constructor and
+read fields directly (`$dto->name`). Now each message is a `final class` with `private`
+fields plus fluent accessors:
 
-**Why not split into per-driver crates** (the original #77 proposal). Lean builds are
-already delivered by Cargo features (`features = ["redis"]` never compiles the
-Kafka/AWS/GCP SDKs), and the prebuilt `.so` ships every driver regardless. A crate split
-would only buy independent crates.io versioning at the cost of 8× publish surface — not
-worth it for the one real pain point, which is fixed in place here.
+```php
+// build — both work, and are equivalent on the wire
+$reply = (new HelloReply())->setMessage("Hi");   // fluent, chainable
+$reply = new HelloReply(message: "Hi");          // named args — constructor kept
 
-**Protected behavior — unchanged and verified:** the `[jobs.connections.<driver>]` TOML
-layout, secret redaction in logs, queue routing (`[<connection>.]<queue>`), the
-feature-missing fail-fast error, the `jobs.push` / `jobs.stats` RPC, metric names, and
-the consume / retry / dead-letter loop. The full unit + integration suite passes without
-test changes; end-to-end job push→redis→consume was smoke-tested on Laravel (NTS fork
-model).
+// read
+echo $reply->getMessage();
+```
 
-**Versions:** folk-plugin-jobs **0.7.1** (crates.io). No other crate changed — folk-api
-(0.3.3), folk-core/folk-ext (0.6.3), folk-plugin-grpc (0.7.1), folk-builder (0.2.20), and
-all PHP adapters are untouched. Prebuilt extension release `0.2.14`.
+Every field gets `getX(): T` and `setX(T $value): self`. The all-optional constructor
+is preserved, so existing `new Foo(field: ...)` construction keeps working unchanged.
+
+**Protected behavior — unchanged and verified.** The wire contract (canonical JSON:
+snake_case fields, enums as ints, bytes base64) is byte-identical; `FOLK_FIELDS`, the
+`Hydrator::hydrate()` build path, service `*Interface` and `*Client` stub signatures,
+`INPUT_STREAMS`, the `{package}` layout, and int-backed enums are all untouched.
+Internally `Hydrator::dehydrate()` now reads the private fields by reflection on the
+field name (decoupled from accessor naming). The full folk/sdk suite (110 tests,
+phpstan level 8) is green, and end-to-end gRPC — unary, server-streaming,
+client-streaming, and bidi, plus the full type-map `Echo` — was smoke-tested across
+Laravel, Symfony, Spiral, and Yii 3.
+
+**Upgrading (breaking for regenerated code).** After upgrading, **re-run codegen**
+(`php artisan folk:grpc:generate`, or `vendor/bin/folk-grpc-gen`) and switch field
+**reads** from `$dto->field` to `$dto->getField()`. Construction via
+`new Foo(field: ...)` needs no change. Because the fields are now private,
+`json_encode($dto)` no longer emits them — go through the SDK path (the router and
+client already do) or build the array from the getters.
+
+**Versions:** folk/sdk **0.4.8** (Packagist). No other package changed — the framework
+adapters resolve `folk/sdk` on `^0.4` and need no update; folk-api, folk-core/folk-ext,
+the plugins, folk-builder, and the prebuilt extension are all untouched.
