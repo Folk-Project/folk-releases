@@ -1,50 +1,29 @@
 # Release Notes
 
-### `on_init` — pre-start lifecycle hooks
+### Dev hot-reload no longer hangs
 
-Folk can now run setup commands **itself** before the framework boots and any
-listener binds — so an "everything in one container" deployment no longer needs a
-separate `entrypoint.sh`. Configure them in `folk.toml`:
+`[dev] watch = true` reloads reliably again. Previously, on a real app, editing a
+watched file could leave the server **up but unresponsive** — every request got
+`connection refused` / `502` with no recovery until a manual restart.
 
-```toml
-[on_init]
-exec_timeout = "60s"       # default per-step timeout
-exit_on_error = true       # non-zero exit / timeout aborts startup (fail-fast)
-commands = [
-  "cp -n .env.example .env",
-  "composer install --no-dev --optimize-autoloader",
-  { run = "php artisan migrate --force", exec_timeout = "300s" },
-]
-```
+**What was wrong.** Fork-after-warm hot reload works by having the master drain its
+workers and re-exec itself for a fresh, fully re-warmed bootstrap (a plain re-fork
+can't pick up changed code — forked workers inherit the master's warm image via
+copy-on-write). The drain's final step waited for **all** children to exit with an
+unbounded blocking reap. In a container the master runs as PID 1, so it also reaps
+orphans: any process your app detached into its own session (a scheduler tick, a
+queue worker, a sidecar) re-parents to the master when its worker dies, and the
+master then blocked on it forever — the re-exec never ran, the workers stayed dead,
+the port went silent.
 
-**What it does.** Each `commands` entry is either a bare shell string (uses the
-section defaults) or an inline table overriding `run` / `exec_timeout` / `env` /
-`user` / `exit_on_error`. Steps run **sequentially**, in order, from the project
-root, via `sh -c` (pipes and `&&` work). Command output is streamed into the Folk
-log.
+**The fix.** The drain now reaps with a bounded, non-blocking loop: killed workers
+release their `SO_REUSEPORT` sockets immediately, so the fresh master rebinds and
+serves even if a detached grandchild is still lingering. Hot reload recovers in a
+fraction of a second instead of hanging.
 
-**Fail-fast by default.** Unlike RoadRunner's `on_init` (log-and-continue), Folk
-defaults `exit_on_error = true`: a non-zero exit or a per-step timeout aborts
-startup, so a broken environment (a failed migration, a missing dependency) never
-receives traffic. Opt out globally or per step. A step that overruns its
-`exec_timeout` is killed (`SIGTERM` → grace → `SIGKILL` of its process group).
+Also cleaned up: in the fork model the legacy in-process file watcher is inert (each
+worker runs a single, non-recyclable main thread), so it no longer starts in workers
+and the misleading `Set workers.count > 1` warning is gone — reload is driven by the
+master. Production (no `[dev] watch`) is unaffected.
 
-**Readiness.** While `on_init` runs, no listener is bound — an orchestrator's
-readiness probe sees connection-refused (= not ready), and a fail-fast abort exits
-non-zero so the container restarts instead of serving a half-set-up app.
-
-**When it runs.** At the very top of the entry script, *before*
-`vendor/autoload.php` is required, so even pre-bootstrap commands (a fresh `.env`,
-a dependency refresh) take effect. Two caveats: it needs a shell (`sh -c`) — a
-distroless image without one can't use string commands — and it is not a
-from-scratch installer (the launcher lives in `vendor/bin`, so `composer install`
-here refreshes an existing `vendor/`, it can't create an empty one). Absent
-`[on_init]` (or empty `commands`) is a no-op: startup is unchanged.
-
-**Availability.** Works across all four framework adapters (Laravel, Symfony,
-Spiral, Yii 3). Requires the rebuilt extension.
-
-**Versions:** folk-core / folk-ext **0.6.4** (config section + `on_init` engine +
-native `folk_on_init()`), prebuilt extension rebuilt. The framework adapters ship a
-one-line entry-script change (`bin/folk-server`) and a stub update. folk-api, the
-plugins, and folk-builder are untouched.
+**Upgrade.** Rebuilt `folk.so` (folk-core / folk-ext `0.6.5`). No config changes.
